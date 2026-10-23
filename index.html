@@ -54,6 +54,7 @@ button:focus-visible,input:focus-visible{outline:4px solid var(--ink);outline-of
 .tabs-kid{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
 .tab-kid{min-height:56px;padding:0 24px;border:none;border-radius:999px;background:var(--white);font-family:var(--display);font-size:24px;cursor:pointer}
 .tab-kid[aria-pressed="true"]{background:var(--orange)}
+.btn-shuffle{min-height:56px;padding:0 20px 0 16px;border:none;border-radius:999px;background:var(--white);font-family:var(--display);font-size:21px;cursor:pointer;display:flex;align-items:center;gap:8px}
 .btn-stop-day{margin-left:auto;min-height:56px;padding:0 20px;border:3px solid var(--white);border-radius:999px;background:transparent;font-family:var(--display);font-size:21px;cursor:pointer}
 .btn-stop-day.confirm{background:var(--ink);border-color:var(--ink);color:var(--white)}
 .grid{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:20px;align-content:start;padding:6px}
@@ -225,6 +226,9 @@ textarea.field{flex:none;height:96px;padding:12px 16px;resize:none;font-size:13p
       <div class="tabs-kid">
         <button class="tab-kid" data-tab="all" aria-pressed="true">전체 영상</button>
         <button class="tab-kid" data-tab="fav" aria-pressed="false">좋아하는 영상</button>
+        <button class="btn-shuffle" id="h-shuffle">
+          <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#1F3A5F" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 3v5h5"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 21v-5h-5"/></svg>새로고침
+        </button>
         <button class="btn-stop-day" id="h-stopday" hidden>오늘은 그만 볼래</button>
       </div>
       <div class="grid" id="grid"></div>
@@ -560,14 +564,25 @@ let pickedId = null;
 let moodTimer = null;
 let stopConfirm = false;
 
+// 섞는 순서: 앱을 열 때와 새로고침 버튼을 누를 때만 바뀌고, 그 사이에는 그대로 (API 호출 없음)
+let shuffleSeed = Math.random().toString(36).slice(2);
+function shuffleRank(id) {
+  let h = 2166136261;
+  const s = shuffleSeed + id;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35); h ^= h >>> 16;   // 골고루 섞이게
+  return h >>> 0;
+}
 function allVideos() {
   const out = []; const seen = new Set();
   items.forEach((it) => {
     const vids = it.type === 'video' ? [{ id: it.ytId, title: it.title, thumb: it.thumb }] : ((cache[it.uid] || {}).videos || []);
     vids.forEach((v) => { if (!seen.has(v.id)) { seen.add(v.id); out.push(Object.assign({ fav: !!it.fav }, v)); } });
   });
-  return out.filter((v) => v.fav).concat(out.filter((v) => !v.fav));   // 즐겨찾기 먼저
+  return out.sort((a, b) => shuffleRank(a.id) - shuffleRank(b.id));   // 모든 채널을 섞어서
 }
+// 지금 탭에 보이는 영상: 즐겨찾기는 "좋아하는 영상" 탭에만
+const tabVideos = () => allVideos().filter((v) => (kidTab === 'fav') === v.fav);
 function setMood(face, text, anim) {
   const body = $('#mascot-body');
   body.innerHTML = dinoSVG(face);
@@ -605,11 +620,11 @@ function renderHome() {
   if (today.finished) return showDone();
   renderStatus();
   $$('.tab-kid').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tab === kidTab)));
-  const vids = allVideos().filter((v) => kidTab === 'all' || v.fav);
+  const vids = tabVideos();
   const grid = $('#grid');
   if (!vids.length) {
-    grid.innerHTML = `<div class="empty">${kidTab === 'fav' && items.length ? '아직 좋아하는 영상이 없어요.' :
-      '아직 볼 수 있는 영상이 없어요.<br>부모님이 오른쪽 위 자물쇠를 눌러 영상을 넣어 주세요.'}</div>`;
+    grid.innerHTML = `<div class="empty">${!items.length ? '아직 볼 수 있는 영상이 없어요.<br>부모님이 오른쪽 위 자물쇠를 눌러 영상을 넣어 주세요.' :
+      kidTab === 'fav' ? '아직 좋아하는 영상이 없어요.' : '영상은 모두 좋아하는 영상 탭에 있어요.'}</div>`;
     return;
   }
   grid.innerHTML = vids.map((v) => `
@@ -637,6 +652,11 @@ $('#grid').addEventListener('click', (e) => {
   setTimeout(() => playVideo(v), 1100);
 });
 $$('.tab-kid').forEach((b) => b.addEventListener('click', () => { kidTab = b.dataset.tab; renderHome(); }));
+$('#h-shuffle').addEventListener('click', () => {
+  shuffleSeed = Math.random().toString(36).slice(2);
+  renderHome(); $('#grid').scrollTop = 0;
+  if (tabVideos().length > 1) react('excited', '짜잔! 영상 순서가\n바뀌었어', 'hop');
+});
 $('#mascot').addEventListener('click', () => react('tickled', '히히, 간지러워!', 'wiggle'));
 $('#h-feed').addEventListener('click', () => {
   if (pet.cookies <= 0) return react('hello', '쿠키가 없어!\n약속을 지키면 받을 수 있어', 'bob');
@@ -714,7 +734,7 @@ function onEnded() {
   stopTick();
   if (remainingCount() <= 0) return finishDay('count');
   if (settings.autoplay) {
-    const list = allVideos(); const i = list.findIndex((x) => x.id === current.id);
+    const list = tabVideos(); const i = list.findIndex((x) => x.id === current.id);
     const next = list[(i + 1) % list.length];
     if (next && next.id !== current.id) return playVideo(next);
   }
