@@ -1,0 +1,988 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#DDF1FB">
+<meta name="mobile-web-app-capable" content="yes">
+<title>뭉치랑 영상 보기</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sky:#DDF1FB; --ink:#1F3A5F; --ink2:#4A6383; --white:#FFFFFF; --orange:#FF9A4D; --peach:#FFE3CC;
+  --line:#C5D3E3; --line2:#E3EAF2; --night:#26446F; --parent:#EEF4FA; --star:#FFC93C;
+  --cookie:#E8B26A; --chip:#6B3F1F; --moon:#FFE9A8;
+  --display:'Jua','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+  --body:'Gowun Dodum','Apple SD Gothic Neo','Malgun Gothic',sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--body);color:var(--ink);background:var(--sky);overflow:hidden;-webkit-tap-highlight-color:transparent}
+button{font-family:inherit;color:inherit}
+button:focus-visible,input:focus-visible{outline:4px solid var(--ink);outline-offset:3px}
+.screen{position:absolute;inset:0;display:none;padding:calc(24px + env(safe-area-inset-top,0px)) 32px calc(24px + env(safe-area-inset-bottom,0px))}
+.screen.on{display:flex}
+.kid{user-select:none;-webkit-user-select:none}
+.display{font-family:var(--display);font-weight:400}
+
+/* ---------- home ---------- */
+#home{flex-direction:column;gap:16px;background:var(--sky)}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.brand{font-family:var(--display);font-size:clamp(28px,3.2vw,40px);line-height:1}
+.pills{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.pill{display:flex;align-items:baseline;gap:6px;background:var(--white);border-radius:999px;padding:8px 20px;font-size:19px;font-weight:700}
+.pill b{font-family:var(--display);font-weight:400;font-size:32px;line-height:1}
+.pill.cookie{align-items:center;padding:6px 18px 6px 10px}
+.icon-btn{width:52px;height:52px;border:none;border-radius:999px;background:transparent;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.home-main{flex:1;min-height:0;display:flex;gap:32px}
+.pet-col{width:350px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px}
+.bubble{background:var(--white);border-radius:30px;padding:18px 24px;font-family:var(--display);font-size:27px;line-height:1.3;text-align:center;width:100%;min-height:108px;display:flex;align-items:center;justify-content:center;white-space:pre-line}
+.bubble-tail{margin-top:-6px}
+.mascot{border:none;background:transparent;padding:0;cursor:pointer;width:var(--dino,270px);height:var(--dino,270px)}
+.mascot .body{width:100%;height:100%;transform-origin:50% 92%}
+.mascot svg{width:100%;height:100%;display:block}
+.feedbar{width:100%;background:var(--white);border-radius:24px;padding:12px 14px 12px 18px;display:flex;align-items:center;gap:14px}
+.feedbar .meter-wrap{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;font-size:17px;font-weight:700}
+.meter{height:14px;border-radius:999px;background:#E3EDF5;overflow:hidden}
+.meter i{display:block;height:100%;border-radius:999px;background:var(--orange);transition:width .4s}
+.btn-feed{flex-shrink:0;min-height:56px;padding:0 18px 0 10px;border:none;border-radius:18px;background:var(--orange);font-family:var(--display);font-size:22px;display:flex;align-items:center;gap:8px;cursor:pointer}
+.videos-col{flex:1;min-width:0;display:flex;flex-direction:column;gap:16px}
+.tabs-kid{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.tab-kid{min-height:56px;padding:0 24px;border:none;border-radius:999px;background:var(--white);font-family:var(--display);font-size:24px;cursor:pointer}
+.tab-kid[aria-pressed="true"]{background:var(--orange)}
+.btn-stop-day{margin-left:auto;min-height:56px;padding:0 20px;border:3px solid var(--white);border-radius:999px;background:transparent;font-family:var(--display);font-size:21px;cursor:pointer}
+.btn-stop-day.confirm{background:var(--ink);border-color:var(--ink);color:var(--white)}
+.grid{flex:1;min-height:0;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:20px;align-content:start;padding:6px}
+.tile{border:none;text-align:left;cursor:pointer;background:var(--white);border-radius:26px;padding:12px 12px 16px;display:flex;flex-direction:column;gap:12px;transition:box-shadow .15s}
+.tile.picked{box-shadow:0 0 0 6px var(--orange)}
+.thumb{position:relative;aspect-ratio:16/9;border-radius:18px;overflow:hidden;background:#CFE0FF}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb img[src=""],.li img[src=""]{visibility:hidden}
+.thumb .fav{position:absolute;top:8px;right:8px;width:40px;height:40px}
+.tile-title{font-family:var(--display);font-size:22px;line-height:1.25;padding:0 6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.empty{grid-column:1/-1;background:var(--white);border-radius:26px;padding:40px;text-align:center;font-size:22px;line-height:1.6}
+
+.bob{animation:bob 3.2s ease-in-out infinite}
+.hop{animation:hop .7s ease-out 2}
+.wiggle{animation:wiggle .35s ease-in-out 4}
+.munch{animation:munch .28s ease-in-out 6}
+.breathe{animation:breathe 4s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes hop{0%,100%{transform:translateY(0) scale(1,1)}30%{transform:translateY(0) scale(1.08,.9)}60%{transform:translateY(-36px) scale(.95,1.06)}}
+@keyframes wiggle{0%,100%{transform:rotate(0)}25%{transform:rotate(-7deg)}75%{transform:rotate(7deg)}}
+@keyframes munch{0%,100%{transform:scale(1,1)}50%{transform:scale(1.05,.95)}}
+@keyframes breathe{0%,100%{transform:scale(1,1)}50%{transform:scale(1.03,.97)}}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-10px)}40%,80%{transform:translateX(10px)}}
+
+@media (orientation:portrait),(max-width:900px){
+  .home-main{flex-direction:column;gap:16px}
+  .pet-col{width:100%;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:center;--dino:170px}
+  .pet-col .bubble{flex:1 1 300px;width:auto;min-height:80px;font-size:23px}
+  .bubble-tail{display:none}
+  .feedbar{flex-basis:100%}
+}
+
+/* ---------- player ---------- */
+#player{flex-direction:column;gap:16px;background:#0F1E33;color:var(--white)}
+.player-bar{display:flex;align-items:center;gap:16px}
+.btn-back{min-height:60px;padding:0 26px;border:none;border-radius:999px;background:var(--orange);color:var(--ink);font-family:var(--display);font-size:26px;cursor:pointer;display:flex;align-items:center;gap:10px}
+.player-title{flex:1;min-width:0;font-family:var(--display);font-size:26px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.player-time{background:var(--white);color:var(--ink);border-radius:999px;padding:8px 20px;font-size:19px;font-weight:700;white-space:nowrap}
+.player-time b{font-family:var(--display);font-weight:400;font-size:30px}
+.video-wrap{flex:1;min-height:0;position:relative;border-radius:24px;overflow:hidden;background:#000}
+.video-wrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.shield{position:absolute;inset:0;background:transparent;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.shield .big-play{width:140px;height:140px;border-radius:999px;background:rgba(255,255,255,.92);display:none;align-items:center;justify-content:center}
+.shield.paused .big-play{display:flex}
+
+/* ---------- done ---------- */
+#done{flex-direction:column;align-items:center;justify-content:center;gap:16px;background:var(--night);color:var(--white);overflow:hidden}
+#done .sky{position:absolute;inset:0;width:100%;height:100%}
+#done > *:not(.sky){position:relative}
+#done .dino{width:250px;height:250px}
+#done h1{margin:0;font-family:var(--display);font-weight:400;font-size:clamp(38px,5vw,54px);line-height:1.15;text-align:center}
+#done p{margin:0;font-size:24px;line-height:1.5;text-align:center}
+.cookie-card{margin-top:8px;display:flex;align-items:center;gap:16px;background:var(--white);color:var(--ink);border-radius:28px;padding:14px 28px 14px 16px}
+.cookie-card b{display:block;font-family:var(--display);font-weight:400;font-size:30px;line-height:1.2}
+.cookie-card span{font-size:18px;color:var(--ink2)}
+.btn-unlock{position:absolute !important;right:32px;bottom:calc(28px + env(safe-area-inset-bottom,0px));min-height:48px;padding:10px 20px;border-radius:999px;border:2px solid #8FA6C8;background:transparent;color:#DCE6F4;font-size:18px;display:flex;align-items:center;gap:8px;cursor:pointer}
+
+/* ---------- parent & setup ---------- */
+#parent,#setup{flex-direction:column;gap:20px;background:var(--parent);overflow:auto}
+.p-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.p-head h1{margin:0;font-family:var(--display);font-weight:400;font-size:34px}
+.btn-dark{min-height:48px;padding:0 22px;border:none;border-radius:999px;background:var(--ink);color:var(--white);font-size:18px;font-weight:700;cursor:pointer}
+.p-main{flex:1;min-height:0;display:flex;gap:20px;flex-wrap:wrap}
+.panel{background:var(--white);border-radius:24px;padding:22px 26px;display:flex;flex-direction:column;gap:14px;min-height:0}
+.panel.left{flex:1.5 1 520px;min-width:0}
+.panel.right{flex:1 1 340px;min-width:0;overflow:auto}
+.panel h2{margin:0;font-size:21px}
+.seg{display:flex;gap:6px;background:var(--parent);border-radius:16px;padding:6px;align-self:flex-start;flex-wrap:wrap}
+.seg button{min-height:44px;padding:0 18px;border:none;border-radius:12px;background:transparent;font-size:17px;font-weight:700;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--white)}
+.row-input{display:flex;gap:10px}
+.field{flex:1;min-width:0;height:48px;border:2px solid var(--line);border-radius:14px;padding:0 16px;font-family:inherit;font-size:16px;color:var(--ink);background:var(--white)}
+.field.strong{border-color:var(--ink)}
+.btn-orange{height:48px;padding:0 20px;border:none;border-radius:14px;background:var(--orange);font-size:17px;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn-ink{height:48px;padding:0 20px;border:none;border-radius:14px;background:var(--ink);color:var(--white);font-size:17px;font-weight:700;cursor:pointer;white-space:nowrap}
+.btn-line{min-height:44px;padding:0 14px;border:2px solid var(--line);border-radius:12px;background:var(--white);color:var(--ink2);font-size:15px;cursor:pointer;white-space:nowrap}
+.btn-peach{height:48px;border:none;border-radius:14px;background:var(--peach);font-size:17px;font-weight:700;cursor:pointer}
+.hint{font-size:14px;color:var(--ink2);line-height:1.5}
+.list{flex:1;min-height:120px;overflow:auto;display:flex;flex-direction:column}
+.li{display:flex;align-items:center;gap:14px;padding:8px 4px;border-bottom:1px solid var(--line2)}
+.li img{width:80px;height:45px;object-fit:cover;border-radius:10px;flex-shrink:0;background:#CFE0FF}
+.li img.round{width:45px;height:45px;border-radius:999px;margin:0 17px}
+.li .txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.li .txt b{font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.li .txt span{font-size:14px;color:var(--ink2)}
+.star-btn{width:48px;height:44px;border:none;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0}
+.added{background:var(--white);border:2px solid var(--line);color:var(--ink2)}
+.stepper-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:18px}
+.stepper{display:flex;align-items:center;gap:8px}
+.stepper button{width:48px;height:48px;border-radius:999px;border:2px solid var(--line);background:var(--white);font-size:24px;cursor:pointer}
+.stepper output{min-width:72px;text-align:center;font-family:var(--display);font-size:26px}
+.check{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:18px;min-height:40px;cursor:pointer}
+.check input{width:24px;height:24px;accent-color:var(--ink);margin:0;flex-shrink:0}
+.sep{height:1px;background:var(--line2)}
+.split{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.setup-card{max-width:560px;width:100%;margin:auto;background:var(--white);border-radius:28px;padding:32px;display:flex;flex-direction:column;gap:16px}
+.setup-card label{font-weight:700;font-size:17px}
+.setup-card .dino{width:140px;height:140px;align-self:center}
+
+/* ---------- pin modal ---------- */
+.modal{position:fixed;inset:0;background:rgba(15,30,51,.55);display:flex;align-items:center;justify-content:center;z-index:20}
+.modal[hidden]{display:none}
+.pin-card{background:var(--white);border-radius:28px;padding:28px 32px;width:min(380px,92vw);display:flex;flex-direction:column;align-items:center;gap:16px}
+.pin-card h2{margin:0;font-size:22px}
+.pin-dots{display:flex;gap:14px}
+.pin-dots i{width:20px;height:20px;border-radius:999px;border:3px solid var(--ink)}
+.pin-dots i.on{background:var(--ink)}
+.pin-dots.shake{animation:shake .4s}
+.pin-msg{min-height:22px;font-size:16px;color:#B3261E}
+.keypad{display:grid;grid-template-columns:repeat(3,72px);gap:12px}
+.keypad button{height:64px;border-radius:18px;border:2px solid var(--line);background:var(--white);font-size:26px;font-weight:700;cursor:pointer}
+.keypad button.muted{border:none;font-size:17px;color:var(--ink2)}
+.toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--white);padding:14px 22px;border-radius:16px;font-size:17px;z-index:30;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;text-align:center}
+.toast.on{opacity:1}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+</style>
+</head>
+<body>
+
+<!-- ===== 처음 설정 ===== -->
+<section id="setup" class="screen">
+  <div class="setup-card">
+    <div class="dino" id="setup-dino"></div>
+    <h1 class="display" style="margin:0;font-size:32px;text-align:center">처음 설정</h1>
+    <p class="hint" style="margin:0;text-align:center">부모님 화면에 들어갈 때 쓰는 숫자 비밀번호 4자리를 정해 주세요.</p>
+    <label for="s-pin">비밀번호 (숫자 4자리)</label>
+    <input id="s-pin" class="field" type="password" inputmode="numeric" maxlength="4" autocomplete="off">
+    <label for="s-pin2">비밀번호 다시 입력</label>
+    <input id="s-pin2" class="field" type="password" inputmode="numeric" maxlength="4" autocomplete="off">
+    <label for="s-key">YouTube API 키 (나중에 넣어도 돼요)</label>
+    <input id="s-key" class="field" type="text" autocomplete="off" placeholder="AIza…">
+    <p class="hint" style="margin:0">API 키가 있어야 유튜브 검색, 채널 영상 불러오기, 영상 제목 가져오기가 돼요.</p>
+    <button class="btn-orange" id="s-start" style="height:56px;font-size:19px">시작하기</button>
+  </div>
+</section>
+
+<!-- ===== 아이 홈 ===== -->
+<section id="home" class="screen kid">
+  <div class="topbar">
+    <div class="brand">뭉치랑 영상 보기</div>
+    <div class="pills">
+      <div class="pill">남은 영상 <b id="h-left">0</b>개</div>
+      <div class="pill">남은 시간 <b id="h-time">0</b>분</div>
+      <div class="pill cookie"><span id="h-cookie-icon"></span><b id="h-cookies">0</b>개</div>
+      <button class="icon-btn" id="h-lock" aria-label="부모님 설정">
+        <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#4A6383" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="home-main">
+    <div class="pet-col">
+      <div class="bubble" id="bubble" aria-live="polite">안녕! 오늘은 뭘 볼까?</div>
+      <svg class="bubble-tail" width="40" height="20" viewBox="0 0 40 20" aria-hidden="true"><path d="M0 0h40L20 20z" fill="#fff"/></svg>
+      <button class="mascot" id="mascot" aria-label="뭉치 쓰다듬기"><div class="body bob" id="mascot-body"></div></button>
+      <div class="feedbar">
+        <div class="meter-wrap"><span id="h-grow">뭉치 키우기 0 / 10</span><div class="meter"><i id="h-meter" style="width:0%"></i></div></div>
+        <button class="btn-feed" id="h-feed"><span id="feed-icon"></span>쿠키 주기</button>
+      </div>
+    </div>
+    <div class="videos-col">
+      <div class="tabs-kid">
+        <button class="tab-kid" data-tab="all" aria-pressed="true">전체 영상</button>
+        <button class="tab-kid" data-tab="fav" aria-pressed="false">좋아하는 영상</button>
+        <button class="btn-stop-day" id="h-stopday" hidden>오늘은 그만 볼래</button>
+      </div>
+      <div class="grid" id="grid"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 재생 ===== -->
+<section id="player" class="screen kid">
+  <div class="player-bar">
+    <button class="btn-back" id="p-back">
+      <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#1F3A5F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>그만 보기
+    </button>
+    <div class="player-title" id="p-title"></div>
+    <div class="player-time">남은 시간 <b id="p-time">0</b>분</div>
+  </div>
+  <div class="video-wrap">
+    <div id="yt"></div>
+    <button class="shield paused" id="p-shield" aria-label="재생 또는 일시정지">
+      <span class="big-play"><svg width="64" height="64" viewBox="0 0 60 60" aria-hidden="true"><path d="M22 14l24 16-24 16z" fill="#1F3A5F" stroke="#1F3A5F" stroke-width="4" stroke-linejoin="round"/></svg></span>
+    </button>
+  </div>
+</section>
+
+<!-- ===== 오늘 끝 ===== -->
+<section id="done" class="screen kid">
+  <svg class="sky" viewBox="0 0 1280 800" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <circle cx="1060" cy="150" r="70" fill="#FFE9A8"/><circle cx="1090" cy="128" r="62" fill="#26446F"/>
+    <circle cx="180" cy="120" r="5" fill="#FFE9A8"/><circle cx="320" cy="210" r="3" fill="#FFE9A8"/><circle cx="140" cy="420" r="4" fill="#FFE9A8"/>
+    <circle cx="900" cy="300" r="3" fill="#FFE9A8"/><circle cx="1150" cy="460" r="5" fill="#FFE9A8"/><circle cx="760" cy="90" r="4" fill="#FFE9A8"/><circle cx="460" cy="70" r="3" fill="#FFE9A8"/>
+  </svg>
+  <div class="dino breathe" id="done-dino"></div>
+  <h1 id="d-title">약속을 잘 지켰어요!</h1>
+  <p id="d-text">뭉치는 이제 잘 시간이야. 내일 또 같이 보자!</p>
+  <div class="cookie-card" id="d-cookie" hidden>
+    <span id="d-cookie-icon"></span>
+    <div><b>쿠키 1개 받았어!</b><span id="d-cookie-text"></span></div>
+  </div>
+  <button class="btn-unlock" id="d-unlock">
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#DCE6F4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>부모님 잠금 해제
+  </button>
+</section>
+
+<!-- ===== 부모님 설정 ===== -->
+<section id="parent" class="screen">
+  <div class="p-head">
+    <h1>부모님 설정</h1>
+    <button class="btn-dark" id="pa-back">아이 화면으로 돌아가기</button>
+  </div>
+  <div class="p-main">
+    <div class="panel left">
+      <div class="seg" role="group" aria-label="부모님 메뉴">
+        <button data-ptab="list" aria-pressed="true" id="pt-list">볼 수 있는 영상</button>
+        <button data-ptab="search" aria-pressed="false">유튜브에서 찾기</button>
+        <button data-ptab="app" aria-pressed="false">앱 설정</button>
+      </div>
+
+      <div id="pv-list" style="display:flex;flex-direction:column;gap:14px;flex:1;min-height:0">
+        <div class="row-input">
+          <label for="pa-link" class="sr">영상이나 채널 링크</label>
+          <input id="pa-link" class="field" type="url" placeholder="영상, 재생목록, 채널 링크를 붙여넣어도 돼요">
+          <button class="btn-orange" id="pa-add">추가</button>
+        </div>
+        <div class="list" id="pa-list"></div>
+      </div>
+
+      <div id="pv-search" style="display:none;flex-direction:column;gap:12px;flex:1;min-height:0">
+        <form class="row-input" id="pa-search-form">
+          <label for="pa-q" class="sr">유튜브 검색어</label>
+          <input id="pa-q" class="field strong" type="search" placeholder="예: 공룡 노래" enterkeyhint="search">
+          <button class="btn-ink" type="submit">검색</button>
+        </form>
+        <span class="hint">쇼츠는 검색 결과에 나오지 않아요. 안전 검색이 항상 켜져 있어요.</span>
+        <div class="list" id="pa-results"></div>
+      </div>
+
+      <div id="pv-app" style="display:none;flex-direction:column;gap:14px;overflow:auto">
+        <h2>YouTube API 키</h2>
+        <div class="row-input">
+          <label for="pa-key" class="sr">YouTube API 키</label>
+          <input id="pa-key" class="field" type="text" autocomplete="off" placeholder="AIza…">
+          <button class="btn-ink" id="pa-key-save">저장</button>
+        </div>
+        <div class="sep"></div>
+        <h2>비밀번호 바꾸기</h2>
+        <div class="row-input">
+          <label for="pa-pin" class="sr">새 비밀번호 4자리</label>
+          <input id="pa-pin" class="field" type="password" inputmode="numeric" maxlength="4" placeholder="새 비밀번호 4자리">
+          <button class="btn-ink" id="pa-pin-save">바꾸기</button>
+        </div>
+        <div class="sep"></div>
+        <h2>오늘 기록</h2>
+        <span class="hint" id="pa-today" style="font-size:16px"></span>
+        <div class="row-input" style="flex-wrap:wrap">
+          <button class="btn-orange" id="pa-bonus">10분 더 주기</button>
+          <button class="btn-line" id="pa-reset" style="height:48px">오늘 기록 처음으로</button>
+          <button class="btn-line" id="pa-refresh" style="height:48px">채널 영상 새로고침</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel right">
+      <h2>하루 규칙</h2>
+      <div class="stepper-row">하루 시청 시간
+        <div class="stepper"><button data-step="dailyMinutes" data-d="-5" aria-label="시청 시간 줄이기">−</button><output id="o-min"></output><button data-step="dailyMinutes" data-d="5" aria-label="시청 시간 늘리기">+</button></div>
+      </div>
+      <div class="stepper-row">하루 영상 개수
+        <div class="stepper"><button data-step="dailyCount" data-d="-1" aria-label="영상 개수 줄이기">−</button><output id="o-cnt"></output><button data-step="dailyCount" data-d="1" aria-label="영상 개수 늘리기">+</button></div>
+      </div>
+      <div class="sep"></div>
+      <label class="check">영상이 끝나면 목록으로 돌아가기<input type="checkbox" data-opt="returnToList"></label>
+      <label class="check">다음 영상 자동 재생<input type="checkbox" data-opt="autoplay"></label>
+      <label class="check">쇼츠 숨기기<input type="checkbox" data-opt="hideShorts"></label>
+      <div class="sep"></div>
+      <div class="split"><h2>쿠키 보상</h2><span class="hint" id="pa-cookies" style="font-size:16px"></span></div>
+      <label class="check">오늘은 그만 볼래를 스스로 누르면 쿠키 1개<input type="checkbox" data-opt="cookieOnSelfStop"></label>
+      <label class="check">영상 개수를 다 지키면 쿠키 1개<input type="checkbox" data-opt="cookieOnCount"></label>
+      <button class="btn-peach" id="pa-gift">칭찬 쿠키 직접 주기</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 비밀번호 ===== -->
+<div class="modal" id="pin" hidden>
+  <div class="pin-card" role="dialog" aria-modal="true" aria-labelledby="pin-title">
+    <h2 id="pin-title">부모님 비밀번호</h2>
+    <div class="pin-dots" id="pin-dots"><i></i><i></i><i></i><i></i></div>
+    <div class="pin-msg" id="pin-msg" aria-live="assertive"></div>
+    <div class="keypad" id="keypad"></div>
+  </div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+'use strict';
+/* =========================================================
+   저장소 (탭 안의 localStorage에 저장)
+   ========================================================= */
+const NS = 'mungchi:';
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(NS + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(NS + k, JSON.stringify(v)); } catch (e) { console.warn('저장 실패', e); } }
+};
+const DEFAULTS = {
+  pin: null, apiKey: '', dailyMinutes: 30, dailyCount: 3,
+  returnToList: true, autoplay: false, hideShorts: true,
+  cookieOnSelfStop: true, cookieOnCount: true
+};
+let settings = Object.assign({}, DEFAULTS, LS.get('settings', {}));
+let items = LS.get('items', []);          // 부모님이 허용한 영상·재생목록·채널
+let cache = LS.get('cache', {});          // 재생목록·채널의 영상 목록 캐시
+let pet = Object.assign({ cookies: 0, fed: 0, level: 1 }, LS.get('pet', {}));
+let today = loadToday();
+
+function dayKey() { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+function freshDay() { return { date: dayKey(), watchedSec: 0, watchedCount: 0, bonusSec: 0, finished: false, reason: null, cookie: false }; }
+function loadToday() { const t = LS.get('today', null); return (t && t.date === dayKey()) ? t : freshDay(); }
+function checkNewDay() { if (today.date !== dayKey()) { today = freshDay(); saveToday(); } }
+const saveSettings = () => LS.set('settings', settings);
+const saveItems = () => LS.set('items', items);
+const saveCache = () => LS.set('cache', cache);
+const savePet = () => LS.set('pet', pet);
+const saveToday = () => LS.set('today', today);
+
+const remainingSec = () => Math.max(0, settings.dailyMinutes * 60 + today.bonusSec - today.watchedSec);
+const remainingCount = () => Math.max(0, settings.dailyCount - today.watchedCount);
+
+/* =========================================================
+   도우미
+   ========================================================= */
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => Array.from(document.querySelectorAll(s));
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const decoder = document.createElement('textarea');
+const dec = (s) => { decoder.innerHTML = s || ''; return decoder.value; };
+let toastTimer = null;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 2600);
+}
+function show(id) { $$('.screen').forEach((s) => s.classList.toggle('on', s.id === id)); }
+function fmtDur(sec) { const m = Math.floor(sec / 60), s = sec % 60; return m + ':' + String(s).padStart(2, '0'); }
+function parseIsoDur(iso) {
+  const m = /P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?/.exec(iso || '');
+  if (!m) return 0;
+  return (+m[1] || 0) * 86400 + (+m[2] || 0) * 3600 + (+m[3] || 0) * 60 + (+m[4] || 0);
+}
+function thumbOf(sn) { const t = (sn && sn.thumbnails) || {}; return (t.medium || t.high || t.default || {}).url || ''; }
+
+/* =========================================================
+   뭉치 그림 (아기 공룡)
+   ========================================================= */
+const COOKIE_SVG = (size) => `<svg width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="17" fill="#E8B26A" stroke="#1F3A5F" stroke-width="3"/><circle cx="14" cy="15" r="2.6" fill="#6B3F1F"/><circle cx="25" cy="13" r="2.2" fill="#6B3F1F"/><circle cx="24" cy="24" r="2.8" fill="#6B3F1F"/><circle cx="13" cy="25" r="2" fill="#6B3F1F"/></svg>`;
+const STAR_PATH = 'M12 2.8l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 16.8l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z';
+const DINO_BODY = `
+<ellipse cx="100" cy="193" rx="60" ry="6" fill="#000" opacity=".14"/>
+<path d="M146 168c26 4 44-6 48-30-12 14-28 18-46 14z" fill="#7CCB7E" stroke="#1F3A5F" stroke-width="5" stroke-linejoin="round"/>
+<path d="M176 150l8 2-3 8zM164 160l8 1-3 8z" fill="#FF9A4D" stroke="#1F3A5F" stroke-width="3" stroke-linejoin="round"/>
+<ellipse cx="100" cy="152" rx="54" ry="38" fill="#7CCB7E" stroke="#1F3A5F" stroke-width="5"/>
+<ellipse cx="100" cy="160" rx="32" ry="24" fill="#FFF1C9"/>
+<path d="M84 152h32M86 164h28" stroke="#E9D69E" stroke-width="3" stroke-linecap="round"/>
+<ellipse cx="72" cy="186" rx="17" ry="9" fill="#7CCB7E" stroke="#1F3A5F" stroke-width="5"/>
+<ellipse cx="128" cy="186" rx="17" ry="9" fill="#7CCB7E" stroke="#1F3A5F" stroke-width="5"/>
+<ellipse cx="54" cy="150" rx="9" ry="14" fill="#7CCB7E" stroke="#1F3A5F" stroke-width="5" transform="rotate(25 54 150)"/>
+<ellipse cx="146" cy="150" rx="9" ry="14" fill="#7CCB7E" stroke="#1F3A5F" stroke-width="5" transform="rotate(-25 146 150)"/>
+<path d="M66 44l10-20 12 18zM90 34l12-22 12 22zM114 42l12-18 10 20z" fill="#FF9A4D" stroke="#1F3A5F" stroke-width="4" stroke-linejoin="round"/>
+<ellipse cx="100" cy="88" rx="68" ry="54" fill="#7CCB7E" stroke="#1F3A5F" stroke-width="5"/>
+<circle cx="58" cy="66" r="5" fill="#5BAF62"/><circle cx="146" cy="72" r="4" fill="#5BAF62"/><circle cx="138" cy="60" r="3" fill="#5BAF62"/>`;
+const FACES = {
+  hello: `<ellipse cx="58" cy="104" rx="12" ry="8" fill="#FF9EAA"/><ellipse cx="142" cy="104" rx="12" ry="8" fill="#FF9EAA"/>
+<circle cx="76" cy="84" r="10" fill="#1F3A5F"/><circle cx="79" cy="80" r="3.5" fill="#fff"/>
+<circle cx="124" cy="84" r="10" fill="#1F3A5F"/><circle cx="127" cy="80" r="3.5" fill="#fff"/>
+<path d="M80 108q20 16 40 0" fill="none" stroke="#1F3A5F" stroke-width="5" stroke-linecap="round"/>
+<path d="M90 110l4 6 4-5M110 110l-4 6-4-5" fill="#fff" stroke="#1F3A5F" stroke-width="2" stroke-linejoin="round"/>`,
+  excited: `<ellipse cx="58" cy="104" rx="13" ry="9" fill="#FF8A9A"/><ellipse cx="142" cy="104" rx="13" ry="9" fill="#FF8A9A"/>
+<path d="M64 88q12-16 24 0M112 88q12-16 24 0" fill="none" stroke="#1F3A5F" stroke-width="6" stroke-linecap="round"/>
+<path d="M78 104q22 34 44 0z" fill="#1F3A5F" stroke="#1F3A5F" stroke-width="4" stroke-linejoin="round"/>
+<path d="M90 118q10 9 20 0" fill="#FF8A9A"/>
+<path d="M20 30l4 10 10 4-10 4-4 10-4-10-10-4 10-4zM180 22l3 7 7 3-7 3-3 7-3-7-7-3 7-3zM186 100l3 6 6 3-6 3-3 6-3-6-6-3 6-3z" fill="#FF9A4D"/>`,
+  tickled: `<ellipse cx="58" cy="104" rx="14" ry="10" fill="#FF8A9A"/><ellipse cx="142" cy="104" rx="14" ry="10" fill="#FF8A9A"/>
+<path d="M66 76l16 9-16 9M134 76l-16 9 16 9" fill="none" stroke="#1F3A5F" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M76 104q24 28 48 0z" fill="#fff" stroke="#1F3A5F" stroke-width="5" stroke-linejoin="round"/>
+<path d="M14 100q-8 10 0 20M6 92q-12 18 0 36M186 60q8 10 0 20" fill="none" stroke="#1F3A5F" stroke-width="4" stroke-linecap="round"/>`,
+  eating: `<ellipse cx="56" cy="104" rx="17" ry="13" fill="#FF8A9A"/><ellipse cx="144" cy="104" rx="17" ry="13" fill="#FF8A9A"/>
+<path d="M64 86q12 10 24 0M112 86q12 10 24 0" fill="none" stroke="#1F3A5F" stroke-width="6" stroke-linecap="round"/>
+<path d="M86 108q14 12 28 0q-14 6-28 0z" fill="#1F3A5F" stroke="#1F3A5F" stroke-width="4" stroke-linejoin="round"/>
+<circle cx="126" cy="116" r="11" fill="#E8B26A" stroke="#1F3A5F" stroke-width="3"/><circle cx="123" cy="113" r="2" fill="#6B3F1F"/><circle cx="129" cy="119" r="2" fill="#6B3F1F"/>
+<circle cx="142" cy="128" r="2.5" fill="#E8B26A"/><circle cx="134" cy="134" r="2" fill="#E8B26A"/><circle cx="70" cy="126" r="2" fill="#E8B26A"/>`,
+  sleepy: `<ellipse cx="58" cy="104" rx="12" ry="8" fill="#FF9EAA"/><ellipse cx="142" cy="104" rx="12" ry="8" fill="#FF9EAA"/>
+<path d="M64 86q12 9 24 0M112 86q12 9 24 0" fill="none" stroke="#1F3A5F" stroke-width="5" stroke-linecap="round"/>
+<ellipse cx="100" cy="112" rx="6" ry="7" fill="#1F3A5F"/>
+<path d="M156 14h16l-16 18h16M180 0h11l-11 12h11" fill="none" stroke="#FFE9A8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`
+};
+function dinoSVG(face, label) {
+  const a11y = label ? `role="img" aria-label="${esc(label)}"` : 'aria-hidden="true"';
+  return `<svg viewBox="0 0 200 200" width="100%" height="100%" ${a11y}>${DINO_BODY}${FACES[face] || FACES.hello}</svg>`;
+}
+
+/* =========================================================
+   YouTube Data API
+   ========================================================= */
+async function yt(path, params) {
+  if (!settings.apiKey) throw new Error('API 키가 없어요. 앱 설정에서 YouTube API 키를 넣어 주세요.');
+  const u = new URL('https://www.googleapis.com/youtube/v3/' + path);
+  Object.entries(Object.assign({}, params, { key: settings.apiKey })).forEach(([k, v]) => u.searchParams.set(k, v));
+  const r = await fetch(u.toString());
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const reason = j.error && j.error.errors && j.error.errors[0] && j.error.errors[0].reason;
+    const e = new Error(reason === 'quotaExceeded' ? '오늘 쓸 수 있는 API 사용량을 다 썼어요. 내일 다시 해 주세요.' :
+      reason === 'keyInvalid' ? 'API 키가 올바르지 않아요. 앱 설정에서 확인해 주세요.' :
+      (j.error && j.error.message) || ('요청 실패 (' + r.status + ')'));
+    e.status = r.status; throw e;
+  }
+  return j;
+}
+// 영상 상세 (제목, 썸네일, 길이, 퍼가기 허용 여부)
+async function videoDetails(ids) {
+  const out = {};
+  for (let i = 0; i < ids.length; i += 50) {
+    const j = await yt('videos', { part: 'snippet,contentDetails,status', id: ids.slice(i, i + 50).join(','), maxResults: 50 });
+    (j.items || []).forEach((v) => {
+      out[v.id] = {
+        id: v.id, title: dec(v.snippet.title), thumb: thumbOf(v.snippet), channel: dec(v.snippet.channelTitle),
+        sec: parseIsoDur(v.contentDetails.duration), embeddable: v.status.embeddable !== false,
+        live: v.snippet.liveBroadcastContent !== 'none'
+      };
+    });
+  }
+  return out;
+}
+// 쇼츠 판별: 60초 이하이거나 제목에 #shorts (채널은 쇼츠가 빠진 목록을 따로 불러와요)
+const isShort = (d) => (d.sec > 0 && d.sec <= 60) || /#shorts?\b/i.test(d.title);
+const playable = (d) => d && d.embeddable && !d.live && !(settings.hideShorts && isShort(d));
+
+async function fetchPlaylist(listId, max) {
+  const ids = []; let page = '';
+  do {
+    const p = { part: 'contentDetails', playlistId: listId, maxResults: 50 };
+    if (page) p.pageToken = page;
+    const j = await yt('playlistItems', p);
+    (j.items || []).forEach((it) => ids.push(it.contentDetails.videoId));
+    page = j.nextPageToken || '';
+  } while (page && ids.length < max);
+  const det = await videoDetails(ids.slice(0, max));
+  return ids.map((id) => det[id]).filter(playable).map((d) => ({ id: d.id, title: d.title, thumb: d.thumb }));
+}
+async function refreshItem(it) {
+  let vids = [];
+  if (it.type === 'playlist') vids = await fetchPlaylist(it.ytId, 100);
+  else if (it.type === 'channel') {
+    const tail = it.ytId.slice(2);
+    if (settings.hideShorts) {
+      try { vids = await fetchPlaylist('UULF' + tail, 60); }   // 쇼츠가 빠진 긴 영상 목록
+      catch (e) { vids = await fetchPlaylist('UU' + tail, 60); }
+    } else vids = await fetchPlaylist('UU' + tail, 60);
+  }
+  cache[it.uid] = { at: Date.now(), videos: vids }; saveCache();
+}
+let refreshing = false;
+async function refreshAll(force) {
+  if (refreshing || !settings.apiKey) return;
+  refreshing = true;
+  const SIX_HOURS = 6 * 3600 * 1000;
+  try {
+    for (const it of items) {
+      if (it.type === 'video') continue;
+      const c = cache[it.uid];
+      if (!force && c && Date.now() - c.at < SIX_HOURS) continue;
+      try { await refreshItem(it); } catch (e) { console.warn(it.title, e); }
+    }
+  } finally {
+    refreshing = false;
+    if ($('#home').classList.contains('on')) renderHome();
+    if ($('#parent').classList.contains('on')) renderAllowed();
+  }
+}
+
+/* =========================================================
+   아이 홈 화면
+   ========================================================= */
+let kidTab = 'all';
+let pickedId = null;
+let moodTimer = null;
+let stopConfirm = false;
+
+function allVideos() {
+  const out = []; const seen = new Set();
+  items.forEach((it) => {
+    const vids = it.type === 'video' ? [{ id: it.ytId, title: it.title, thumb: it.thumb }] : ((cache[it.uid] || {}).videos || []);
+    vids.forEach((v) => { if (!seen.has(v.id)) { seen.add(v.id); out.push(Object.assign({ fav: !!it.fav }, v)); } });
+  });
+  return out.filter((v) => v.fav).concat(out.filter((v) => !v.fav));   // 즐겨찾기 먼저
+}
+function setMood(face, text, anim) {
+  const body = $('#mascot-body');
+  body.innerHTML = dinoSVG(face);
+  body.className = 'body';
+  void body.offsetWidth;                      // 애니메이션 다시 시작
+  body.className = 'body ' + (anim || 'bob');
+  if (text != null) $('#bubble').textContent = text;
+}
+function react(face, text, anim) {
+  clearTimeout(moodTimer);
+  setMood(face, text, anim);
+  moodTimer = setTimeout(() => { pickedId = null; renderGridPicked(); setMood('hello', idleText(), 'bob'); }, 2600);
+}
+function idleText() {
+  if (!items.length) return '안녕! 부모님이 영상을\n넣어 주시면 같이 보자';
+  return '안녕! 오늘은 뭘 볼까?';
+}
+function renderStatus() {
+  $('#h-left').textContent = remainingCount();
+  $('#h-time').textContent = Math.ceil(remainingSec() / 60);
+  $('#h-cookies').textContent = pet.cookies;
+  $('#h-grow').textContent = '뭉치 키우기 ' + pet.fed + ' / 10';
+  $('#h-meter').style.width = (pet.fed * 10) + '%';
+  const scale = Math.min(1.15, 1 + (pet.level - 1) * 0.03);   // 쑥 자랄수록 조금씩 커져요
+  $('#mascot').style.transform = 'scale(' + scale + ')';
+  $('#mascot').style.transformOrigin = '50% 100%';
+  const stopBtn = $('#h-stopday');
+  stopBtn.hidden = today.watchedCount === 0;
+  stopBtn.classList.toggle('confirm', stopConfirm);
+  stopBtn.textContent = stopConfirm ? '응, 오늘은 끝낼래' : '오늘은 그만 볼래';
+}
+function renderGridPicked() { $$('.tile').forEach((t) => t.classList.toggle('picked', t.dataset.id === pickedId)); }
+function renderHome() {
+  checkNewDay();
+  if (today.finished) return showDone();
+  renderStatus();
+  $$('.tab-kid').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tab === kidTab)));
+  const vids = allVideos().filter((v) => kidTab === 'all' || v.fav);
+  const grid = $('#grid');
+  if (!vids.length) {
+    grid.innerHTML = `<div class="empty">${kidTab === 'fav' && items.length ? '아직 좋아하는 영상이 없어요.' :
+      '아직 볼 수 있는 영상이 없어요.<br>부모님이 오른쪽 위 자물쇠를 눌러 영상을 넣어 주세요.'}</div>`;
+    return;
+  }
+  grid.innerHTML = vids.map((v) => `
+    <button class="tile${v.id === pickedId ? ' picked' : ''}" data-id="${esc(v.id)}">
+      <div class="thumb"><img src="${esc(v.thumb)}" alt="" loading="lazy">${v.fav ?
+        `<svg class="fav" viewBox="0 0 24 24" role="img" aria-label="좋아하는 영상"><path d="${STAR_PATH}" fill="#FFC93C" stroke="#1F3A5F" stroke-width="1.6" stroke-linejoin="round"/></svg>` : ''}</div>
+      <span class="tile-title">${esc(v.title)}</span>
+    </button>`).join('');
+}
+function goHome(msg) {
+  stopConfirm = false;
+  show('home');
+  renderHome();
+  if (!today.finished) setMood('hello', msg || idleText(), 'bob');
+}
+
+$('#grid').addEventListener('click', (e) => {
+  const tile = e.target.closest('.tile'); if (!tile) return;
+  const v = allVideos().find((x) => x.id === tile.dataset.id); if (!v) return;
+  if (remainingCount() <= 0) return finishDay('count');
+  if (remainingSec() <= 0) return finishDay('time');
+  stopConfirm = false; renderStatus();
+  pickedId = v.id; renderGridPicked();
+  react('excited', '좋아!\n' + v.title + ' 보러 가자!', 'hop');
+  setTimeout(() => playVideo(v), 1100);
+});
+$$('.tab-kid').forEach((b) => b.addEventListener('click', () => { kidTab = b.dataset.tab; renderHome(); }));
+$('#mascot').addEventListener('click', () => react('tickled', '히히, 간지러워!', 'wiggle'));
+$('#h-feed').addEventListener('click', () => {
+  if (pet.cookies <= 0) return react('hello', '쿠키가 없어!\n약속을 지키면 받을 수 있어', 'bob');
+  pet.cookies--; pet.fed++;
+  if (pet.fed >= 10) { pet.fed = 0; pet.level++; savePet(); renderStatus(); return react('excited', '와! 배불러!\n뭉치가 쑥 자랐어!', 'hop'); }
+  savePet(); renderStatus();
+  react('eating', '냠냠! 맛있다!', 'munch');
+});
+$('#h-stopday').addEventListener('click', () => {
+  if (!stopConfirm) { stopConfirm = true; renderStatus(); react('hello', '정말 오늘은 끝낼까?', 'bob'); return; }
+  finishDay('self');
+});
+$('#h-lock').addEventListener('click', () => askPin(openParent));
+
+/* =========================================================
+   재생 (YouTube IFrame Player)
+   ========================================================= */
+let player = null, current = null, counted = false, tick = null, saveTick = 0, playing = false;
+function loadYTApi() {
+  return new Promise((resolve) => {
+    if (window.YT && window.YT.Player) return resolve();
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => { if (prev) prev(); resolve(); };
+    if (!document.getElementById('yt-api')) {
+      const s = document.createElement('script'); s.id = 'yt-api'; s.src = 'https://www.youtube.com/iframe_api';
+      document.head.appendChild(s);
+    }
+  });
+}
+async function playVideo(v) {
+  current = v; counted = false;
+  $('#p-title').textContent = v.title;
+  $('#p-time').textContent = Math.ceil(remainingSec() / 60);
+  setPlaying(false);
+  show('player');
+  await loadYTApi();
+  if (!player) {
+    player = new YT.Player('yt', {
+      videoId: v.id,
+      playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, rel: 0, playsinline: 1, iv_load_policy: 3, modestbranding: 1, hl: 'ko', cc_load_policy: 0 },
+      events: { onReady: (e) => e.target.playVideo(), onStateChange: onPlayerState, onError: onPlayerError }
+    });
+  } else {
+    player.loadVideoById(v.id);
+  }
+}
+function setPlaying(on) { playing = on; $('#p-shield').classList.toggle('paused', !on); }
+function onPlayerState(e) {
+  const S = YT.PlayerState;
+  if (e.data === S.PLAYING) {
+    if (!counted) { counted = true; today.watchedCount++; saveToday(); }
+    setPlaying(true); startTick();
+  } else {
+    setPlaying(false); stopTick();
+  }
+  if (e.data === S.ENDED) onEnded();
+}
+function onPlayerError() {
+  toast('이 영상은 여기서 볼 수 없어요');
+  stopTick(); goHome('이 영상은 지금 볼 수 없대.\n다른 걸 골라 볼까?');
+}
+function startTick() {
+  if (tick) return;
+  tick = setInterval(() => {
+    checkNewDay();
+    today.watchedSec++;
+    if (++saveTick % 5 === 0) saveToday();
+    $('#p-time').textContent = Math.ceil(remainingSec() / 60);
+    if (remainingSec() <= 0) { stopPlayer(); finishDay('time'); }
+  }, 1000);
+}
+function stopTick() { clearInterval(tick); tick = null; saveToday(); }
+function stopPlayer() { try { player && player.stopVideo(); } catch (e) {} stopTick(); setPlaying(false); }
+function onEnded() {
+  stopTick();
+  if (remainingCount() <= 0) return finishDay('count');
+  if (settings.autoplay) {
+    const list = allVideos(); const i = list.findIndex((x) => x.id === current.id);
+    const next = list[(i + 1) % list.length];
+    if (next && next.id !== current.id) return playVideo(next);
+  }
+  if (settings.returnToList) goHome('재밌었어?\n다음엔 뭘 볼까?');
+}
+$('#p-back').addEventListener('click', () => { stopPlayer(); goHome('다음엔 뭘 볼까?'); });
+$('#p-shield').addEventListener('click', () => {
+  if (!player || !player.getPlayerState) return;
+  if (playing) player.pauseVideo(); else player.playVideo();
+});
+
+/* =========================================================
+   오늘 끝 + 쿠키
+   ========================================================= */
+function finishDay(reason) {
+  if (!today.finished) {
+    today.finished = true; today.reason = reason;
+    const earn = !today.cookie && (
+      (reason === 'count' && settings.cookieOnCount) ||
+      (reason === 'self' && settings.cookieOnSelfStop && today.watchedCount > 0));
+    if (earn) { today.cookie = true; pet.cookies++; savePet(); }
+    saveToday();
+  }
+  showDone();
+}
+function showDone() {
+  const T = {
+    count: ['약속을 잘 지켰어요!', '오늘 볼 영상을 다 봤어. 뭉치는 이제 잘 시간이야.'],
+    self: ['스스로 끝냈구나, 멋져!', '뭉치는 이제 잘 시간이야. 내일 또 같이 보자!'],
+    time: ['오늘 시간이 다 됐어요', '뭉치는 이제 잘 시간이야. 내일 또 같이 보자!']
+  }[today.reason] || ['오늘은 여기까지!', '내일 또 같이 보자!'];
+  $('#d-title').textContent = T[0];
+  $('#d-text').textContent = T[1];
+  $('#d-cookie').hidden = !today.cookie;
+  $('#d-cookie-text').textContent = '내일 뭉치한테 먹여 줘. 지금 모은 쿠키 ' + pet.cookies + '개';
+  show('done');
+}
+$('#d-unlock').addEventListener('click', () => askPin(openParent));
+
+/* =========================================================
+   부모님 비밀번호
+   ========================================================= */
+let pinBuf = '', pinOk = null;
+function askPin(onOk) { pinBuf = ''; pinOk = onOk; $('#pin-msg').textContent = ''; drawPin(); $('#pin').hidden = false; }
+function drawPin() { $$('#pin-dots i').forEach((d, i) => d.classList.toggle('on', i < pinBuf.length)); }
+$('#keypad').innerHTML = ['1','2','3','4','5','6','7','8','9','닫기','0','지우기']
+  .map((k) => `<button data-k="${k}"${isNaN(k) ? ' class="muted"' : ''}>${k}</button>`).join('');
+$('#keypad').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  const k = b.dataset.k;
+  if (k === '닫기') { $('#pin').hidden = true; return; }
+  if (k === '지우기') { pinBuf = pinBuf.slice(0, -1); drawPin(); return; }
+  if (pinBuf.length >= 4) return;
+  pinBuf += k; drawPin();
+  if (pinBuf.length === 4) {
+    if (pinBuf === settings.pin) { $('#pin').hidden = true; const f = pinOk; pinOk = null; f && f(); }
+    else {
+      const dots = $('#pin-dots'); dots.classList.remove('shake'); void dots.offsetWidth; dots.classList.add('shake');
+      $('#pin-msg').textContent = '비밀번호가 달라요';
+      setTimeout(() => { pinBuf = ''; drawPin(); }, 400);
+    }
+  }
+});
+
+/* =========================================================
+   부모님 설정
+   ========================================================= */
+let pTab = 'list';
+function openParent() {
+  stopPlayer();
+  show('parent');
+  setPTab(pTab);
+  renderRules(); renderAllowed(); renderAppTab();
+}
+function setPTab(t) {
+  pTab = t;
+  $$('[data-ptab]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.ptab === t)));
+  $('#pv-list').style.display = t === 'list' ? 'flex' : 'none';
+  $('#pv-search').style.display = t === 'search' ? 'flex' : 'none';
+  $('#pv-app').style.display = t === 'app' ? 'flex' : 'none';
+  if (t === 'search') setTimeout(() => $('#pa-q').focus(), 50);
+}
+$$('[data-ptab]').forEach((b) => b.addEventListener('click', () => setPTab(b.dataset.ptab)));
+$('#pa-back').addEventListener('click', () => {
+  checkNewDay();
+  if (today.finished) return showDone();
+  if (remainingCount() <= 0 && today.watchedCount > 0) return finishDay('count');
+  if (remainingSec() <= 0) return finishDay('time');
+  goHome();
+});
+
+function kindText(it) {
+  if (it.type === 'video') return '영상';
+  const n = ((cache[it.uid] || {}).videos || []).length;
+  if (it.type === 'playlist') return '재생목록 · ' + n + '개';
+  return '채널 · 새 영상 모두 허용 · ' + n + '개';
+}
+function renderAllowed() {
+  $('#pt-list').textContent = '볼 수 있는 영상 ' + items.length;
+  const box = $('#pa-list');
+  if (!items.length) { box.innerHTML = '<p class="hint" style="font-size:16px">아직 추가한 영상이 없어요. 위 칸에 링크를 붙여넣거나 "유튜브에서 찾기"에서 검색해 보세요.</p>'; return; }
+  box.innerHTML = items.map((it, i) => `
+    <div class="li">
+      <img src="${esc(it.thumb)}" alt=""${it.type === 'channel' ? ' class="round"' : ''}>
+      <div class="txt"><b>${esc(it.title)}</b><span>${kindText(it)}</span></div>
+      <button class="star-btn" data-fav="${i}" aria-pressed="${!!it.fav}" aria-label="${esc(it.title)} 즐겨찾기">
+        <svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><path d="${STAR_PATH}" fill="${it.fav ? '#FFC93C' : '#FFFFFF'}" stroke="${it.fav ? '#1F3A5F' : '#8FA6C8'}" stroke-width="1.8" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="btn-line" data-del="${i}" aria-label="${esc(it.title)} 빼기">빼기</button>
+    </div>`).join('');
+}
+$('#pa-list').addEventListener('click', (e) => {
+  const f = e.target.closest('[data-fav]'), d = e.target.closest('[data-del]');
+  if (f) { const it = items[+f.dataset.fav]; it.fav = !it.fav; saveItems(); renderAllowed(); }
+  if (d) {
+    const it = items[+d.dataset.del];
+    if (!confirm('"' + it.title + '"을(를) 목록에서 뺄까요?')) return;
+    items.splice(+d.dataset.del, 1); delete cache[it.uid]; saveItems(); saveCache(); renderAllowed();
+  }
+});
+
+// 링크 해석
+function parseLink(s) {
+  s = (s || '').trim(); let m;
+  if (!s) return null;
+  if (/youtube\.com\/shorts\//.test(s)) return { kind: 'short' };
+  if ((m = /[?&]v=([\w-]{11})/.exec(s)) || (m = /youtu\.be\/([\w-]{11})/.exec(s)) || (m = /\/(?:embed|live)\/([\w-]{11})/.exec(s))) return { kind: 'video', id: m[1] };
+  if ((m = /[?&]list=([\w-]+)/.exec(s))) return { kind: 'playlist', id: m[1] };
+  if ((m = /\/channel\/(UC[\w-]{22})/.exec(s))) return { kind: 'channel', id: m[1] };
+  if ((m = /youtube\.com\/(@[^/?#\s]+)/.exec(s))) return { kind: 'handle', id: decodeURIComponent(m[1]) };
+  if (/^@[^\s/]+$/.test(s)) return { kind: 'handle', id: s };
+  if (/^[\w-]{11}$/.test(s)) return { kind: 'video', id: s };
+  return null;
+}
+const hasItem = (uid) => items.some((x) => x.uid === uid);
+async function addItem(it) {
+  if (hasItem(it.uid)) { toast('이미 목록에 있어요'); return false; }
+  items.unshift(it); saveItems(); renderAllowed();
+  if (it.type !== 'video') {
+    toast('"' + it.title + '" 영상을 불러오는 중이에요');
+    try { await refreshItem(it); toast('"' + it.title + '"을(를) 추가했어요'); }
+    catch (e) { toast(e.message); }
+    renderAllowed();
+  } else toast('"' + it.title + '"을(를) 추가했어요');
+  return true;
+}
+async function addFromLink(text) {
+  const p = parseLink(text);
+  if (!p) return toast('유튜브 영상, 재생목록, 채널 링크를 넣어 주세요');
+  if (p.kind === 'short') return toast('쇼츠는 추가할 수 없어요');
+  try {
+    if (p.kind === 'video') {
+      const d = (await videoDetails([p.id]))[p.id];
+      if (!d) return toast('영상을 찾을 수 없어요');
+      if (!d.embeddable) return toast('이 영상은 다른 곳에서 재생할 수 없게 막혀 있어요');
+      if (settings.hideShorts && isShort(d)) return toast('쇼츠는 추가할 수 없어요');
+      await addItem({ uid: 'video:' + d.id, type: 'video', ytId: d.id, title: d.title, thumb: d.thumb, fav: false });
+    } else if (p.kind === 'playlist') {
+      const j = await yt('playlists', { part: 'snippet', id: p.id });
+      const pl = (j.items || [])[0]; if (!pl) return toast('재생목록을 찾을 수 없어요');
+      await addItem({ uid: 'playlist:' + pl.id, type: 'playlist', ytId: pl.id, title: dec(pl.snippet.title), thumb: thumbOf(pl.snippet), fav: false });
+    } else {
+      const params = p.kind === 'channel' ? { part: 'snippet', id: p.id } : { part: 'snippet', forHandle: p.id };
+      const j = await yt('channels', params);
+      const ch = (j.items || [])[0]; if (!ch) return toast('채널을 찾을 수 없어요');
+      await addItem({ uid: 'channel:' + ch.id, type: 'channel', ytId: ch.id, title: dec(ch.snippet.title), thumb: thumbOf(ch.snippet), fav: false });
+    }
+    $('#pa-link').value = '';
+  } catch (e) { toast(e.message); }
+}
+$('#pa-add').addEventListener('click', () => addFromLink($('#pa-link').value));
+$('#pa-link').addEventListener('keydown', (e) => { if (e.key === 'Enter') addFromLink($('#pa-link').value); });
+
+// 유튜브 검색
+let results = [];
+$('#pa-search-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const q = $('#pa-q').value.trim(); if (!q) return;
+  const box = $('#pa-results');
+  box.innerHTML = '<p class="hint" style="font-size:16px">찾는 중이에요…</p>';
+  try {
+    const j = await yt('search', { part: 'snippet', q: q, type: 'video,channel', safeSearch: 'strict', maxResults: 25, regionCode: 'KR', relevanceLanguage: 'ko' });
+    const vids = (j.items || []).filter((x) => x.id.kind === 'youtube#video').map((x) => x.id.videoId);
+    const det = vids.length ? await videoDetails(vids) : {};
+    results = (j.items || []).map((x) => {
+      if (x.id.kind === 'youtube#channel') return { type: 'channel', id: x.id.channelId, title: dec(x.snippet.title), thumb: thumbOf(x.snippet), meta: '채널' };
+      const d = det[x.id.videoId];
+      if (!playable(d)) return null;
+      return { type: 'video', id: d.id, title: d.title, thumb: d.thumb, meta: d.channel + ' · ' + fmtDur(d.sec) };
+    }).filter(Boolean);
+    renderResults();
+  } catch (err) { box.innerHTML = '<p class="hint" style="font-size:16px">' + esc(err.message) + '</p>'; }
+});
+function renderResults() {
+  const box = $('#pa-results');
+  if (!results.length) { box.innerHTML = '<p class="hint" style="font-size:16px">검색 결과가 없어요. 다른 말로 찾아보세요.</p>'; return; }
+  box.innerHTML = results.map((r, i) => {
+    const done = hasItem(r.type + ':' + r.id);
+    return `<div class="li">
+      <img src="${esc(r.thumb)}" alt=""${r.type === 'channel' ? ' class="round"' : ''}>
+      <div class="txt"><b>${esc(r.title)}</b><span>${esc(r.meta)}</span></div>
+      <button class="btn-orange${done ? ' added' : ''}" data-add="${i}" style="height:44px;min-width:108px">${done ? '추가됨' : (r.type === 'channel' ? '채널 추가' : '영상 추가')}</button>
+    </div>`;
+  }).join('');
+}
+$('#pa-results').addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-add]'); if (!b) return;
+  const r = results[+b.dataset.add];
+  const uid = r.type + ':' + r.id;
+  if (hasItem(uid)) return toast('이미 목록에 있어요');
+  b.textContent = '추가 중…';
+  await addItem({ uid: uid, type: r.type, ytId: r.id, title: r.title, thumb: r.thumb, fav: false });
+  renderResults();
+});
+
+// 하루 규칙
+const LIMITS = { dailyMinutes: [5, 180], dailyCount: [1, 20] };
+function renderRules() {
+  $('#o-min').textContent = settings.dailyMinutes + '분';
+  $('#o-cnt').textContent = settings.dailyCount + '개';
+  $$('[data-opt]').forEach((c) => { c.checked = !!settings[c.dataset.opt]; });
+  $('#pa-cookies').textContent = '지금 모은 쿠키 ' + pet.cookies + '개';
+}
+$$('[data-step]').forEach((b) => b.addEventListener('click', () => {
+  const k = b.dataset.step, [lo, hi] = LIMITS[k];
+  settings[k] = Math.min(hi, Math.max(lo, settings[k] + (+b.dataset.d)));
+  saveSettings(); renderRules(); renderAppTab();
+}));
+$$('[data-opt]').forEach((c) => c.addEventListener('change', () => {
+  settings[c.dataset.opt] = c.checked; saveSettings();
+  if (c.dataset.opt === 'hideShorts') { cache = {}; saveCache(); refreshAll(true); toast('채널 영상 목록을 다시 불러올게요'); }
+}));
+$('#pa-gift').addEventListener('click', () => { pet.cookies++; savePet(); renderRules(); toast('칭찬 쿠키 1개를 줬어요'); });
+
+// 앱 설정
+function renderAppTab() {
+  $('#pa-key').value = settings.apiKey || '';
+  $('#pa-today').textContent = '오늘 본 영상 ' + today.watchedCount + '개 · ' + Math.floor(today.watchedSec / 60) + '분 · 남은 시간 ' + Math.ceil(remainingSec() / 60) + '분' + (today.finished ? ' · 오늘 시청 끝남' : '');
+}
+$('#pa-key-save').addEventListener('click', () => {
+  settings.apiKey = $('#pa-key').value.trim(); saveSettings(); toast('API 키를 저장했어요'); refreshAll(true);
+});
+$('#pa-pin-save').addEventListener('click', () => {
+  const v = $('#pa-pin').value.trim();
+  if (!/^\d{4}$/.test(v)) return toast('숫자 4자리로 넣어 주세요');
+  settings.pin = v; saveSettings(); $('#pa-pin').value = ''; toast('비밀번호를 바꿨어요');
+});
+$('#pa-bonus').addEventListener('click', () => {
+  today.bonusSec += 600; today.finished = false; today.reason = null; saveToday(); renderAppTab(); toast('오늘 10분을 더 줬어요');
+});
+$('#pa-reset').addEventListener('click', () => {
+  if (!confirm('오늘 본 시간과 개수를 처음으로 돌릴까요?')) return;
+  const keepCookie = today.cookie;
+  today = freshDay(); today.cookie = keepCookie; saveToday(); renderAppTab(); toast('오늘 기록을 처음으로 돌렸어요');
+});
+$('#pa-refresh').addEventListener('click', () => { refreshAll(true); toast('채널 영상을 새로 불러올게요'); });
+
+/* =========================================================
+   처음 설정 + 시작
+   ========================================================= */
+$('#s-start').addEventListener('click', () => {
+  const a = $('#s-pin').value.trim(), b = $('#s-pin2').value.trim();
+  if (!/^\d{4}$/.test(a)) return toast('비밀번호는 숫자 4자리로 넣어 주세요');
+  if (a !== b) return toast('두 비밀번호가 달라요');
+  settings.pin = a; settings.apiKey = $('#s-key').value.trim(); saveSettings();
+  openParent();
+  toast('이제 볼 수 있는 영상을 추가해 주세요');
+});
+
+// 날짜가 바뀌면 자동으로 새 하루 시작
+setInterval(() => { const before = today.date; checkNewDay(); if (before !== today.date && !$('#parent').classList.contains('on')) goHome(); }, 60 * 1000);
+// 앱을 다시 열 때 최신 상태로
+document.addEventListener('visibilitychange', () => { if (document.hidden) { saveToday(); try { player && player.pauseVideo(); } catch (e) {} } });
+
+(function init() {
+  $('#h-cookie-icon').innerHTML = COOKIE_SVG(36);
+  $('#feed-icon').innerHTML = COOKIE_SVG(34);
+  $('#d-cookie-icon').innerHTML = COOKIE_SVG(64);
+  $('#done-dino').innerHTML = dinoSVG('sleepy', '잠든 아기 공룡 뭉치');
+  $('#setup-dino').innerHTML = dinoSVG('hello', '아기 공룡 뭉치');
+  if (!settings.pin) { show('setup'); return; }
+  goHome();
+  refreshAll(false);
+})();
+</script>
+</body>
+</html>
