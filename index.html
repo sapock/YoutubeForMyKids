@@ -127,6 +127,7 @@ button:focus-visible,input:focus-visible{outline:4px solid var(--ink);outline-of
 .row-input{display:flex;gap:10px}
 .field{flex:1;min-width:0;height:48px;border:2px solid var(--line);border-radius:14px;padding:0 16px;font-family:inherit;font-size:16px;color:var(--ink);background:var(--white)}
 .field.strong{border-color:var(--ink)}
+textarea.field{flex:none;height:96px;padding:12px 16px;resize:none;font-size:13px;line-height:1.4;word-break:break-all}
 .btn-orange{height:48px;padding:0 20px;border:none;border-radius:14px;background:var(--orange);font-size:17px;font-weight:700;cursor:pointer;white-space:nowrap}
 .btn-ink{height:48px;padding:0 20px;border:none;border-radius:14px;background:var(--ink);color:var(--white);font-size:17px;font-weight:700;cursor:pointer;white-space:nowrap}
 .btn-line{min-height:44px;padding:0 14px;border:2px solid var(--line);border-radius:12px;background:var(--white);color:var(--ink2);font-size:15px;cursor:pointer;white-space:nowrap}
@@ -188,6 +189,12 @@ button:focus-visible,input:focus-visible{outline:4px solid var(--ink);outline-of
     <input id="s-key" class="field" type="text" autocomplete="off" placeholder="AIza…">
     <p class="hint" style="margin:0">API 키가 있어야 유튜브 검색, 채널 영상 불러오기, 영상 제목 가져오기가 돼요.</p>
     <button class="btn-orange" id="s-start" style="height:56px;font-size:19px">시작하기</button>
+    <button class="btn-line" id="s-import-open" style="height:48px">다른 기기에서 만든 설정 가져오기</button>
+    <div id="s-import" style="display:none;flex-direction:column;gap:10px">
+      <label for="s-code">옮기기 코드</label>
+      <textarea id="s-code" class="field" autocomplete="off" spellcheck="false" placeholder="다른 기기의 부모님 설정 > 앱 설정에서 만든 코드를 붙여넣어 주세요"></textarea>
+      <button class="btn-ink" id="s-import-go">가져오기</button>
+    </div>
   </div>
 </section>
 
@@ -316,6 +323,15 @@ button:focus-visible,input:focus-visible{outline:4px solid var(--ink);outline-of
           <button class="btn-line" id="pa-reset" style="height:48px">오늘 기록 처음으로</button>
           <button class="btn-line" id="pa-refresh" style="height:48px">채널 영상 새로고침</button>
         </div>
+        <div class="sep"></div>
+        <h2>다른 기기로 옮기기</h2>
+        <span class="hint" style="font-size:16px">볼 수 있는 영상 목록, 하루 규칙, 비밀번호, API 키를 코드 하나로 옮겨요. 쿠키와 오늘 기록은 옮기지 않아요. 코드에 비밀번호와 API 키가 들어 있으니 나에게만 보내 주세요.</span>
+        <div class="row-input" style="flex-wrap:wrap">
+          <button class="btn-orange" id="pa-export">옮기기 코드 만들기</button>
+          <button class="btn-ink" id="pa-import">붙여넣은 코드 가져오기</button>
+        </div>
+        <label for="pa-code" class="sr">옮기기 코드</label>
+        <textarea id="pa-code" class="field" autocomplete="off" spellcheck="false" placeholder="여기에 코드가 만들어져요. 다른 기기에서 만든 코드를 붙여넣고 '가져오기'를 눌러도 돼요."></textarea>
       </div>
     </div>
 
@@ -956,6 +972,45 @@ $('#pa-reset').addEventListener('click', () => {
 });
 $('#pa-refresh').addEventListener('click', () => { refreshAll(true); toast('채널 영상을 새로 불러올게요'); });
 
+// 다른 기기로 옮기기: 설정·허용 목록을 코드 한 줄로 (쿠키·오늘 기록·캐시는 기기마다 따로)
+const CODE_PREFIX = 'MUNGCHI1:';
+function makeMoveCode() {
+  const bytes = new TextEncoder().encode(JSON.stringify({ settings: settings, items: items }));
+  let bin = ''; bytes.forEach((b) => { bin += String.fromCharCode(b); });
+  return CODE_PREFIX + btoa(bin);
+}
+function readMoveCode(code) {
+  code = (code || '').replace(/\s+/g, '');
+  if (code.indexOf(CODE_PREFIX) !== 0) throw new Error('옮기기 코드가 아니에요. 처음부터 끝까지 그대로 붙여넣어 주세요');
+  let data;
+  try {
+    const bin = atob(code.slice(CODE_PREFIX.length));
+    data = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
+  } catch (e) { throw new Error('코드가 잘렸거나 바뀌었어요. 다시 복사해 주세요'); }
+  const s = data && data.settings, list = data && data.items;
+  const okItem = (x) => x && typeof x.uid === 'string' && ['video', 'playlist', 'channel'].includes(x.type) && typeof x.ytId === 'string';
+  if (!s || !/^\d{4}$/.test(s.pin) || !Array.isArray(list) || !list.every(okItem)) throw new Error('코드가 잘렸거나 바뀌었어요. 다시 복사해 주세요');
+  return { settings: s, items: list };
+}
+function applyMoveCode(data) {
+  settings = Object.assign({}, DEFAULTS, data.settings);
+  items = data.items; cache = {};
+  saveSettings(); saveItems(); saveCache();
+}
+$('#pa-export').addEventListener('click', async () => {
+  const box = $('#pa-code'); box.value = makeMoveCode();
+  try { await navigator.clipboard.writeText(box.value); toast('코드를 복사했어요. 다른 기기에 붙여넣어 주세요'); }
+  catch (e) { box.select(); toast('코드를 만들었어요. 길게 눌러 복사해 주세요'); }
+});
+$('#pa-import').addEventListener('click', () => {
+  let data;
+  try { data = readMoveCode($('#pa-code').value); } catch (e) { return toast(e.message); }
+  if (!confirm('지금 기기의 영상 목록과 설정을 코드 내용(영상 ' + data.items.length + '개)으로 바꿀까요? 비밀번호도 코드의 비밀번호로 바뀌어요.')) return;
+  applyMoveCode(data); $('#pa-code').value = '';
+  renderRules(); renderAllowed(); renderAppTab(); refreshAll(true);
+  toast('설정을 가져왔어요. 영상 ' + items.length + '개');
+});
+
 /* =========================================================
    처음 설정 + 시작
    ========================================================= */
@@ -966,6 +1021,17 @@ $('#s-start').addEventListener('click', () => {
   settings.pin = a; settings.apiKey = $('#s-key').value.trim(); saveSettings();
   openParent();
   toast('이제 볼 수 있는 영상을 추가해 주세요');
+});
+$('#s-import-open').addEventListener('click', () => {
+  $('#s-import-open').style.display = 'none'; $('#s-import').style.display = 'flex';
+  setTimeout(() => $('#s-code').focus(), 50);
+});
+$('#s-import-go').addEventListener('click', () => {
+  let data;
+  try { data = readMoveCode($('#s-code').value); } catch (e) { return toast(e.message); }
+  applyMoveCode(data); $('#s-code').value = '';
+  goHome(); refreshAll(true);
+  toast('설정을 가져왔어요. 비밀번호는 원래 기기와 같아요');
 });
 
 // 날짜가 바뀌면 자동으로 새 하루 시작
