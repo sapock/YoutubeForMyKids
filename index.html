@@ -287,7 +287,8 @@ textarea.field{flex:none;height:96px;padding:12px 16px;resize:none;font-size:13p
       </div>
 
       <div id="pv-list" style="display:flex;flex-direction:column;gap:14px;flex:1;min-height:0">
-        <div class="row-input">
+        <span class="hint" id="pa-list-note" style="font-size:16px" hidden></span>
+        <div class="row-input" id="pa-add-row">
           <label for="pa-link" class="sr">영상이나 채널 링크</label>
           <input id="pa-link" class="field" type="url" placeholder="영상, 재생목록, 채널 링크를 붙여넣어도 돼요">
           <button class="btn-orange" id="pa-add">추가</button>
@@ -328,8 +329,22 @@ textarea.field{flex:none;height:96px;padding:12px 16px;resize:none;font-size:13p
           <button class="btn-line" id="pa-refresh" style="height:48px">채널 영상 새로고침</button>
         </div>
         <div class="sep"></div>
+        <h2>목록 공유 (부모님끼리)</h2>
+        <span class="hint" style="font-size:16px">켜면 볼 수 있는 영상 목록을 GitHub 저장소의 channels.json으로 함께 써요. 아이 탭은 토큰 없이 켜기만 하면 되고, 목록을 바꿀 부모님 폰에만 GitHub 토큰을 넣어요. 하루 규칙, 쿠키, 비밀번호는 기기마다 따로예요.</span>
+        <label class="check">공유 목록 사용<input type="checkbox" id="pa-share"></label>
+        <span class="hint" id="pa-share-status" style="font-size:16px"></span>
+        <div class="row-input">
+          <label for="pa-gh" class="sr">GitHub 토큰</label>
+          <input id="pa-gh" class="field" type="password" autocomplete="off" spellcheck="false" placeholder="GitHub 토큰 (목록을 바꿀 부모님 폰에만)">
+          <button class="btn-ink" id="pa-gh-save">확인하고 저장</button>
+        </div>
+        <div class="row-input" style="flex-wrap:wrap">
+          <button class="btn-line" id="pa-share-pull" style="height:48px">공유 목록 지금 받기</button>
+          <button class="btn-line" id="pa-gh-clear" style="height:48px">이 기기에서 토큰 지우기</button>
+        </div>
+        <div class="sep"></div>
         <h2>다른 기기로 옮기기</h2>
-        <span class="hint" style="font-size:16px">볼 수 있는 영상 목록, 하루 규칙, 비밀번호, API 키를 코드 하나로 옮겨요. 쿠키와 오늘 기록은 옮기지 않아요. 코드에 비밀번호와 API 키가 들어 있으니 나에게만 보내 주세요.</span>
+        <span class="hint" style="font-size:16px">볼 수 있는 영상 목록, 하루 규칙, 비밀번호, API 키, 목록 공유 켜짐 여부를 코드 하나로 옮겨요. 쿠키, 오늘 기록, GitHub 토큰은 옮기지 않아요. 코드에 비밀번호와 API 키가 들어 있으니 나에게만 보내 주세요.</span>
         <div class="row-input" style="flex-wrap:wrap">
           <button class="btn-orange" id="pa-export">옮기기 코드 만들기</button>
           <button class="btn-ink" id="pa-import">붙여넣은 코드 가져오기</button>
@@ -384,7 +399,8 @@ const LS = {
 const DEFAULTS = {
   pin: null, apiKey: '', dailyMinutes: 30, dailyCount: 3,
   returnToList: true, autoplay: false, hideShorts: true,
-  cookieOnSelfStop: true, cookieOnCount: true
+  cookieOnSelfStop: true, cookieOnCount: true,
+  shareOn: false, ghToken: '', ghUser: ''   // 목록 공유 (토큰은 이 기기에만, 옮기기 코드에도 넣지 않음)
 };
 let settings = Object.assign({}, DEFAULTS, LS.get('settings', {}));
 let items = LS.get('items', []);          // 부모님이 허용한 영상·재생목록·채널
@@ -557,6 +573,111 @@ async function refreshAll(force) {
 }
 
 /* =========================================================
+   목록 공유 (GitHub 저장소의 channels.json)
+   - 읽기: 토큰이 없어도 됨 (Public 저장소)
+   - 쓰기: 저장소에 쓸 권한이 있는 GitHub 계정의 토큰이 있는 기기만
+   ========================================================= */
+const REPO = 'sapock/YoutubeForMyKids';
+const SHARE_PATH = 'channels.json';
+let lastPull = 0, lastSyncAt = 0;
+let shareQueue = Promise.resolve();
+const queued = (fn) => { const p = shareQueue.then(fn); shareQueue = p.catch(() => {}); return p; };   // 한 번에 하나씩
+
+function b64enc(str) {
+  let bin = ''; new TextEncoder().encode(str).forEach((b) => { bin += String.fromCharCode(b); });
+  return btoa(bin);
+}
+function b64dec(b64) { return new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s+/g, '')), (c) => c.charCodeAt(0))); }
+const okItem = (x) => x && typeof x.uid === 'string' && ['video', 'playlist', 'channel'].includes(x.type) && typeof x.ytId === 'string';
+const cleanItem = (x) => ({ uid: x.uid, type: x.type, ytId: x.ytId, title: String(x.title || ''), thumb: String(x.thumb || ''), fav: !!x.fav });
+const sameList = (a, b) => JSON.stringify(a.map(cleanItem)) === JSON.stringify(b.map(cleanItem));
+const canEdit = () => !settings.shareOn || !!settings.ghToken;
+const sharing = () => settings.shareOn && !!settings.ghToken;
+
+async function gh(method, path, body, token) {
+  let r;
+  try {
+    r = await fetch('https://api.github.com' + path, {
+      method: method, cache: 'no-store',
+      headers: Object.assign({ Accept: 'application/vnd.github+json', Authorization: 'Bearer ' + token }, body ? { 'Content-Type': 'application/json' } : {}),
+      body: body ? JSON.stringify(body) : undefined
+    });
+  } catch (e) { throw new Error('GitHub에 연결하지 못했어요. 인터넷 연결을 확인해 주세요'); }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) { const e = new Error(j.message || ('GitHub 오류 ' + r.status)); e.status = r.status; throw e; }
+  return j;
+}
+function parseShared(text) {
+  const data = JSON.parse(text);
+  if (!data || !Array.isArray(data.items) || !data.items.every(okItem)) throw new Error('공유 목록 파일 모양이 이상해요');
+  return data.items.map(cleanItem);
+}
+// 공유 목록 읽기. 파일이 없으면 null
+async function readShared() {
+  if (settings.ghToken) {
+    try {
+      const j = await gh('GET', '/repos/' + REPO + '/contents/' + SHARE_PATH + '?ref=main', null, settings.ghToken);
+      return { items: parseShared(b64dec(j.content)), sha: j.sha };
+    } catch (e) { if (e.status === 404) return null; if (e.status !== 401) throw e; }   // 토큰이 끊겼으면 아래처럼 읽기만
+  }
+  let r;
+  try { r = await fetch('https://raw.githubusercontent.com/' + REPO + '/main/' + SHARE_PATH + '?t=' + Date.now(), { cache: 'no-store' }); }
+  catch (e) { throw new Error('공유 목록을 받지 못했어요. 인터넷 연결을 확인해 주세요'); }
+  if (r.status === 404) return null;
+  if (!r.ok) throw new Error('공유 목록을 받지 못했어요');
+  return { items: parseShared(await r.text()), sha: null };
+}
+function applyShared(list) {
+  const changed = !sameList(list, items);
+  items = list; saveItems(); lastSyncAt = Date.now();
+  if ($('#parent').classList.contains('on')) { renderAllowed(); renderAppTab(); }
+  if (!changed) return;
+  if ($('#home').classList.contains('on')) renderHome();
+  refreshAll(false);   // 새로 생긴 채널·재생목록의 영상 불러오기
+}
+// 최신 공유 목록에 바꿀 내용을 적용해서 저장. 다른 부모님이 먼저 바꿨으면 다시 받아서 합침
+function commitShared(mutate, message) {
+  return queued(async () => {
+    for (let tries = 0; tries < 3; tries++) {
+      const cur = await readShared();
+      const next = mutate((cur ? cur.items : items).map(cleanItem));
+      const body = { message: message, branch: 'main', content: b64enc(JSON.stringify({ version: 1, items: next }, null, 2) + '\n') };
+      if (cur && cur.sha) body.sha = cur.sha;
+      try {
+        await gh('PUT', '/repos/' + REPO + '/contents/' + SHARE_PATH, body, settings.ghToken);
+        applyShared(next); return;
+      } catch (e) {
+        if (e.status === 409 || e.status === 422) continue;   // 그 사이 바뀜 → 다시
+        if (e.status === 401) throw new Error('토큰이 맞지 않거나 만료됐어요. 앱 설정에서 토큰을 다시 넣어 주세요');
+        if (e.status === 403 || e.status === 404) throw new Error('이 토큰으로는 목록을 바꿀 수 없어요. 토큰의 Contents 쓰기 권한을 확인해 주세요');
+        throw e;
+      }
+    }
+    throw new Error('다른 기기에서 동시에 바꾸고 있어요. 잠시 뒤 다시 해 주세요');
+  });
+}
+// 앱을 열 때, 홈으로 돌아올 때, 부모님 화면을 열 때 최신 목록 받기
+function pullShared(force) {
+  if (!settings.shareOn) return Promise.resolve();
+  if (!force && Date.now() - lastPull < 60 * 1000) return Promise.resolve();
+  lastPull = Date.now();
+  return queued(async () => {
+    const cur = await readShared();
+    if (cur) applyShared(cur.items);
+  }).catch((e) => console.warn('공유 목록', e));
+}
+// 토큰 확인: 누구의 토큰인지, 이 저장소에 쓸 권한이 있는 계정인지
+async function verifyToken(token) {
+  let user, repo;
+  try { user = await gh('GET', '/user', null, token); }
+  catch (e) { throw e.status === 401 ? new Error('토큰이 맞지 않거나 만료됐어요') : e; }
+  try { repo = await gh('GET', '/repos/' + REPO, null, token); }
+  catch (e) { throw (e.status === 401 || e.status === 403 || e.status === 404) ? new Error('이 토큰으로는 ' + REPO + ' 저장소에 들어갈 수 없어요') : e; }
+  if (!repo.permissions || !repo.permissions.push) throw new Error(user.login + ' 계정은 목록을 바꿀 권한이 없어요. 저장소 주인에게 협업자 초대를 받아 주세요');
+  return user.login;
+}
+
+/* =========================================================
    아이 홈 화면
    ========================================================= */
 let kidTab = 'all';
@@ -638,6 +759,7 @@ function goHome(msg) {
   stopConfirm = false;
   show('home');
   renderHome();
+  pullShared(false);
   if (!today.finished) setMood('hello', msg || idleText(), 'bob');
 }
 
@@ -808,6 +930,7 @@ function openParent() {
   show('parent');
   setPTab(pTab);
   renderRules(); renderAllowed(); renderAppTab();
+  pullShared(true);
 }
 function setPTab(t) {
   pTab = t;
@@ -832,27 +955,46 @@ function kindText(it) {
   if (it.type === 'playlist') return '재생목록 · ' + n + '개';
   return '채널 · 새 영상 모두 허용 · ' + n + '개';
 }
+const READONLY_MSG = '이 기기는 공유 목록을 보기만 해요. 목록은 토큰을 넣은 부모님 폰에서 바꿔 주세요';
 function renderAllowed() {
+  const edit = canEdit();
   $('#pt-list').textContent = '볼 수 있는 영상 ' + items.length;
+  $('#pa-add-row').style.display = edit ? 'flex' : 'none';
+  const note = $('#pa-list-note');
+  note.hidden = !settings.shareOn;
+  note.textContent = !settings.shareOn ? '' : edit ? '공유 목록이에요. 여기서 바꾸면 다른 부모님 폰과 아이 탭에도 반영돼요 (' + settings.ghUser + ')' : READONLY_MSG;
   const box = $('#pa-list');
-  if (!items.length) { box.innerHTML = '<p class="hint" style="font-size:16px">아직 추가한 영상이 없어요. 위 칸에 링크를 붙여넣거나 "유튜브에서 찾기"에서 검색해 보세요.</p>'; return; }
+  if (!items.length) { box.innerHTML = '<p class="hint" style="font-size:16px">' + (edit ? '아직 추가한 영상이 없어요. 위 칸에 링크를 붙여넣거나 "유튜브에서 찾기"에서 검색해 보세요.' : '공유 목록이 비어 있어요.') + '</p>'; return; }
+  const star = (it) => `<svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><path d="${STAR_PATH}" fill="${it.fav ? '#FFC93C' : '#FFFFFF'}" stroke="${it.fav ? '#1F3A5F' : '#8FA6C8'}" stroke-width="1.8" stroke-linejoin="round"/></svg>`;
   box.innerHTML = items.map((it, i) => `
     <div class="li">
       <img src="${esc(it.thumb)}" alt=""${it.type === 'channel' ? ' class="round"' : ''}>
       <div class="txt"><b>${esc(it.title)}</b><span>${kindText(it)}</span></div>
-      <button class="star-btn" data-fav="${i}" aria-pressed="${!!it.fav}" aria-label="${esc(it.title)} 즐겨찾기">
-        <svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"><path d="${STAR_PATH}" fill="${it.fav ? '#FFC93C' : '#FFFFFF'}" stroke="${it.fav ? '#1F3A5F' : '#8FA6C8'}" stroke-width="1.8" stroke-linejoin="round"/></svg>
-      </button>
-      <button class="btn-line" data-del="${i}" aria-label="${esc(it.title)} 빼기">빼기</button>
+      ${edit ? `<button class="star-btn" data-fav="${i}" aria-pressed="${!!it.fav}" aria-label="${esc(it.title)} 즐겨찾기">${star(it)}</button>
+      <button class="btn-line" data-del="${i}" aria-label="${esc(it.title)} 빼기">빼기</button>`
+      : (it.fav ? `<span class="star-btn" role="img" aria-label="즐겨찾기">${star(it)}</span>` : '')}
     </div>`).join('');
 }
-$('#pa-list').addEventListener('click', (e) => {
+$('#pa-list').addEventListener('click', async (e) => {
   const f = e.target.closest('[data-fav]'), d = e.target.closest('[data-del]');
-  if (f) { const it = items[+f.dataset.fav]; it.fav = !it.fav; saveItems(); renderAllowed(); }
+  if (!f && !d) return;
+  if (!canEdit()) return toast(READONLY_MSG);
+  if (f) {
+    const it = items[+f.dataset.fav], fav = !it.fav;
+    if (!sharing()) { it.fav = fav; saveItems(); renderAllowed(); return; }
+    f.disabled = true;
+    try { await commitShared((list) => list.map((x) => x.uid === it.uid ? Object.assign(x, { fav: fav }) : x), '목록: 즐겨찾기 ' + (fav ? '추가' : '빼기') + ' - ' + it.title); }
+    catch (err) { toast(err.message); renderAllowed(); }
+  }
   if (d) {
     const it = items[+d.dataset.del];
     if (!confirm('"' + it.title + '"을(를) 목록에서 뺄까요?')) return;
-    items.splice(+d.dataset.del, 1); delete cache[it.uid]; saveItems(); saveCache(); renderAllowed();
+    if (sharing()) {
+      d.disabled = true; toast('공유 목록에 저장하는 중이에요');
+      try { await commitShared((list) => list.filter((x) => x.uid !== it.uid), '목록: 빼기 - ' + it.title); }
+      catch (err) { toast(err.message); renderAllowed(); return; }
+    } else { items = items.filter((x) => x.uid !== it.uid); saveItems(); }
+    delete cache[it.uid]; saveCache(); renderAllowed(); toast('"' + it.title + '"을(를) 뺐어요');
   }
 });
 
@@ -870,9 +1012,16 @@ function parseLink(s) {
   return null;
 }
 const hasItem = (uid) => items.some((x) => x.uid === uid);
+const KIND_NAME = { video: '영상', playlist: '재생목록', channel: '채널' };
 async function addItem(it) {
+  if (!canEdit()) { toast(READONLY_MSG); return false; }
   if (hasItem(it.uid)) { toast('이미 목록에 있어요'); return false; }
-  items.unshift(it); saveItems(); renderAllowed();
+  if (sharing()) {
+    toast('공유 목록에 저장하는 중이에요');
+    try { await commitShared((list) => list.some((x) => x.uid === it.uid) ? list : [cleanItem(it)].concat(list), '목록: ' + KIND_NAME[it.type] + ' 추가 - ' + it.title); }
+    catch (e) { toast(e.message); return false; }
+  } else { items.unshift(it); saveItems(); }
+  renderAllowed();
   if (it.type !== 'video') {
     toast('"' + it.title + '" 영상을 불러오는 중이에요');
     try { await refreshItem(it); toast('"' + it.title + '"을(를) 추가했어요'); }
@@ -972,6 +1121,15 @@ $('#pa-gift').addEventListener('click', () => { pet.cookies++; savePet(); render
 // 앱 설정
 function renderAppTab() {
   $('#pa-key').value = settings.apiKey || '';
+  $('#pa-share').checked = !!settings.shareOn;
+  $('#pa-gh').placeholder = settings.ghToken ? '저장된 토큰 있음 (' + settings.ghUser + ') · 바꾸려면 새 토큰 입력' : 'GitHub 토큰 (목록을 바꿀 부모님 폰에만)';
+  $('#pa-gh-clear').hidden = !settings.ghToken;
+  const pad = (n) => String(n).padStart(2, '0');
+  const at = lastSyncAt ? ' · 마지막으로 받은 시각 ' + pad(new Date(lastSyncAt).getHours()) + ':' + pad(new Date(lastSyncAt).getMinutes()) : '';
+  $('#pa-share-status').textContent =
+    !settings.shareOn ? (settings.ghToken ? settings.ghUser + ' 계정 토큰이 있어요. 공유를 켜면 목록을 함께 바꿀 수 있어요.' : '꺼져 있어요. 영상 목록은 이 기기에만 저장돼요.')
+    : settings.ghToken ? settings.ghUser + ' 계정으로 연결됨 · 목록을 바꿀 수 있어요' + at
+    : '공유 목록을 보기만 해요 (토큰 없음)' + at;
   $('#pa-today').textContent = '오늘 본 영상 ' + today.watchedCount + '개 · ' + Math.floor(today.watchedSec / 60) + '분 · 남은 시간 ' + Math.ceil(remainingSec() / 60) + '분' + (today.finished ? ' · 오늘 시청 끝남' : '');
 }
 $('#pa-key-save').addEventListener('click', () => {
@@ -992,30 +1150,73 @@ $('#pa-reset').addEventListener('click', () => {
 });
 $('#pa-refresh').addEventListener('click', () => { refreshAll(true); toast('채널 영상을 새로 불러올게요'); });
 
+// 목록 공유
+$('#pa-share').addEventListener('change', async (e) => {
+  const box = e.target;
+  if (!box.checked) {
+    settings.shareOn = false; saveSettings(); renderAppTab(); renderAllowed();
+    return toast('목록 공유를 껐어요. 지금 목록은 이 기기에만 남아요');
+  }
+  box.disabled = true; toast('공유 목록을 찾는 중이에요');
+  try {
+    const cur = await readShared();
+    if (cur) {
+      if (items.length && !sameList(cur.items, items) && !confirm('이 기기의 목록(영상 ' + items.length + '개)을 공유 목록(영상 ' + cur.items.length + '개)으로 바꿀까요?')) { box.checked = false; return; }
+      settings.shareOn = true; saveSettings(); applyShared(cur.items); toast('목록 공유를 켰어요');
+    } else if (settings.ghToken) {
+      if (!confirm('아직 공유 목록이 없어요. 이 기기의 목록(영상 ' + items.length + '개)으로 공유 목록을 만들까요?')) { box.checked = false; return; }
+      settings.shareOn = true;
+      try { await commitShared(() => items.map(cleanItem), '공유 목록 만들기'); }
+      catch (err) { settings.shareOn = false; throw err; }
+      saveSettings(); toast('공유 목록을 만들었어요');
+    } else { box.checked = false; toast('아직 공유 목록이 없어요. 토큰을 넣은 부모님 폰에서 먼저 켜 주세요'); }
+  } catch (err) { box.checked = !!settings.shareOn; toast(err.message); }
+  finally { box.disabled = false; renderAppTab(); renderAllowed(); }
+});
+$('#pa-gh-save').addEventListener('click', async () => {
+  const btn = $('#pa-gh-save'), tok = $('#pa-gh').value.trim();
+  if (!tok) return toast('GitHub 토큰을 넣어 주세요');
+  btn.disabled = true; toast('GitHub에 확인하는 중이에요');
+  try {
+    const login = await verifyToken(tok);
+    settings.ghToken = tok; settings.ghUser = login; saveSettings(); $('#pa-gh').value = '';
+    toast(login + ' 계정으로 연결했어요' + (settings.shareOn ? '' : '. 이제 공유 목록을 켜 주세요'));
+    pullShared(true);
+  } catch (err) { toast(err.message); }
+  finally { btn.disabled = false; renderAppTab(); renderAllowed(); }
+});
+$('#pa-gh-clear').addEventListener('click', () => {
+  if (!confirm('이 기기에서 GitHub 토큰을 지울까요? 공유 목록은 보기만 하게 돼요.')) return;
+  settings.ghToken = ''; settings.ghUser = ''; saveSettings(); renderAppTab(); renderAllowed(); toast('토큰을 지웠어요');
+});
+$('#pa-share-pull').addEventListener('click', async () => {
+  if (!settings.shareOn) return toast('먼저 공유 목록 사용을 켜 주세요');
+  toast('공유 목록을 받는 중이에요');
+  await queued(async () => { const cur = await readShared(); if (!cur) throw new Error('아직 공유 목록이 없어요'); applyShared(cur.items); })
+    .then(() => toast('공유 목록을 받았어요. 영상 ' + items.length + '개'), (err) => toast(err.message));
+});
+
 // 다른 기기로 옮기기: 설정·허용 목록을 코드 한 줄로 (쿠키·오늘 기록·캐시는 기기마다 따로)
 const CODE_PREFIX = 'MUNGCHI1:';
 function makeMoveCode() {
-  const bytes = new TextEncoder().encode(JSON.stringify({ settings: settings, items: items }));
-  let bin = ''; bytes.forEach((b) => { bin += String.fromCharCode(b); });
-  return CODE_PREFIX + btoa(bin);
+  const s = Object.assign({}, settings, { ghToken: '', ghUser: '' });   // 토큰은 옮기지 않음
+  return CODE_PREFIX + b64enc(JSON.stringify({ settings: s, items: items }));
 }
 function readMoveCode(code) {
   code = (code || '').replace(/\s+/g, '');
   if (code.indexOf(CODE_PREFIX) !== 0) throw new Error('옮기기 코드가 아니에요. 처음부터 끝까지 그대로 붙여넣어 주세요');
   let data;
-  try {
-    const bin = atob(code.slice(CODE_PREFIX.length));
-    data = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
-  } catch (e) { throw new Error('코드가 잘렸거나 바뀌었어요. 다시 복사해 주세요'); }
+  try { data = JSON.parse(b64dec(code.slice(CODE_PREFIX.length))); }
+  catch (e) { throw new Error('코드가 잘렸거나 바뀌었어요. 다시 복사해 주세요'); }
   const s = data && data.settings, list = data && data.items;
-  const okItem = (x) => x && typeof x.uid === 'string' && ['video', 'playlist', 'channel'].includes(x.type) && typeof x.ytId === 'string';
   if (!s || !/^\d{4}$/.test(s.pin) || !Array.isArray(list) || !list.every(okItem)) throw new Error('코드가 잘렸거나 바뀌었어요. 다시 복사해 주세요');
   return { settings: s, items: list };
 }
 function applyMoveCode(data) {
-  settings = Object.assign({}, DEFAULTS, data.settings);
+  settings = Object.assign({}, DEFAULTS, data.settings, { ghToken: settings.ghToken, ghUser: settings.ghUser });
   items = data.items; cache = {};
   saveSettings(); saveItems(); saveCache();
+  if (settings.shareOn) pullShared(true);
 }
 $('#pa-export').addEventListener('click', async () => {
   const box = $('#pa-code'); box.value = makeMoveCode();
@@ -1057,7 +1258,10 @@ $('#s-import-go').addEventListener('click', () => {
 // 날짜가 바뀌면 자동으로 새 하루 시작
 setInterval(() => { const before = today.date; checkNewDay(); if (before !== today.date && !$('#parent').classList.contains('on')) goHome(); }, 60 * 1000);
 // 앱을 다시 열 때 최신 상태로
-document.addEventListener('visibilitychange', () => { if (document.hidden) { saveToday(); try { player && player.pauseVideo(); } catch (e) {} } });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { saveToday(); try { player && player.pauseVideo(); } catch (e) {} }
+  else if ($('#home').classList.contains('on')) pullShared(false);
+});
 
 (function init() {
   $('#h-cookie-icon').innerHTML = COOKIE_SVG(36);

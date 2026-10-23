@@ -31,6 +31,30 @@
 - 쿠키, 뭉치 키우기, 오늘 기록은 기기마다 따로라서 옮기지 않아요.
 - 코드에 비밀번호와 API 키가 들어 있으니 나에게만 보내 주세요.
 
+## 부모님끼리 영상 목록 함께 쓰기 (목록 공유)
+볼 수 있는 영상 목록을 이 저장소의 `channels.json` 파일에 두고 여러 기기가 함께 씁니다.
+목록을 바꿀 수 있는 사람은 이 저장소에 쓸 권한이 있는 GitHub 계정(저장소 주인과 협업자)뿐입니다.
+
+### 목록을 바꿀 부모님 폰: GitHub 토큰 만들기
+- 저장소 주인(sapock): GitHub > Settings > Developer settings > Personal access tokens > **Fine-grained tokens** > Generate new token
+  - Repository access: **Only select repositories** → YoutubeForMyKids
+  - Permissions > Repository permissions > **Contents: Read and write**
+- 협업자(예: 남편): 먼저 저장소 주인이 저장소 Settings > Collaborators > Add people 로 초대하고, 초대를 수락합니다.
+  그다음 본인 계정에서 Personal access tokens > **Tokens (classic)** > Generate new token, scope 는 **public_repo** 하나만 고릅니다.
+  (다른 사람 저장소에는 fine-grained 토큰을 쓸 수 없어서 classic 토큰을 씁니다.)
+- 만료일(Expiration)을 정해 두고, 만료되면 새로 만들어 넣으면 됩니다.
+
+### 앱에서 켜기
+1. 토큰이 있는 부모님 폰: 부모님 설정 > 앱 설정 > 목록 공유 에서 토큰을 넣고 "확인하고 저장"을 누릅니다.
+   앱이 GitHub에 이 토큰이 누구 것인지, 이 저장소에 쓸 권한이 있는지 확인한 뒤에만 저장합니다.
+2. "공유 목록 사용"을 켭니다. 공유 목록이 아직 없으면 이 기기의 목록으로 처음 만들어집니다.
+3. 아이 탭: 토큰 없이 "공유 목록 사용"만 켜면 됩니다. 옮기기 코드에 공유 켜짐 여부가 들어 있어서, 코드를 가져오기만 해도 켜집니다.
+
+- 토큰이 있는 기기에서 영상을 추가·삭제하거나 즐겨찾기를 바꾸면 저장소에 커밋으로 저장됩니다. 누가 언제 바꿨는지 기록이 남아요.
+- 토큰이 없는 기기는 목록을 보기만 합니다. 앱을 열 때, 홈으로 돌아올 때(1분에 한 번까지), 부모님 화면을 열 때 새 목록을 받아요. GitHub 캐시 때문에 반영까지 최대 5분쯤 걸릴 수 있어요.
+- 토큰은 그 기기 안에만 저장되고 옮기기 코드에도 들어가지 않습니다. 폰을 잃어버리면 GitHub에서 그 토큰을 지우세요.
+- 저장소가 Public이라 `channels.json`(채널·영상 이름)은 누구나 볼 수 있어요.
+
 ## 4. 아이가 앱 밖으로 못 나가게
 - Family Link 로 YouTube 앱과 Chrome 을 막아 두세요.
 - 설정 > 보안 및 개인정보 보호 > 기타 보안 설정 > "앱 고정"을 켜고 이 앱을 고정하세요.

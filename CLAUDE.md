@@ -11,6 +11,7 @@
 - `index.html` : 앱 전체 (HTML + CSS + JS 한 파일, 빌드 도구 없음, 외부 라이브러리 없음)
 - `manifest.webmanifest` : PWA 설치 정보 (display: fullscreen)
 - `icon-192.png`, `icon-512.png` : 앱 아이콘 (아기 공룡 얼굴)
+- `channels.json` : 목록 공유를 켜면 앱이 만들고 고치는 공유 영상 목록 (직접 고쳐도 됨, 모양은 아래 "목록 공유" 참고)
 - `README.md` : 부모용 설치 안내 (API 키 발급, Pages 배포, 탭 설치, Family Link·앱 고정)
 
 단일 파일 구조와 "서버 없음"은 의도한 설계다. 바꾸려면 먼저 사용자에게 물어볼 것.
@@ -33,7 +34,7 @@
 3. **재생** (`#player`): YouTube IFrame Player(controls=0, rel=0, fs=0, disablekb=1). 플레이어 위를 투명 버튼(`.shield`)이 덮어 아이가 유튜브 로고·추천 영상을 누를 수 없음. 화면 탭 = 재생/일시정지. 큰 "그만 보기" 버튼, 남은 시간 표시.
 4. **오늘 시청 끝** (`#done`): 밤하늘 배경, 잠든 뭉치, 끝난 이유별 문구, 받은 쿠키 카드, 구석의 작은 "부모님 잠금 해제".
 5. **부모님 설정** (`#parent`)
-   - 왼쪽 탭: "볼 수 있는 영상"(링크 붙여넣기 추가, 목록, 즐겨찾기 별, 빼기) / "유튜브에서 찾기"(검색 후 영상 추가·채널 추가) / "앱 설정"(API 키, 비밀번호 변경, 오늘 기록, 10분 더 주기, 오늘 기록 초기화, 채널 새로고침, 다른 기기로 옮기기).
+   - 왼쪽 탭: "볼 수 있는 영상"(링크 붙여넣기 추가, 목록, 즐겨찾기 별, 빼기) / "유튜브에서 찾기"(검색 후 영상 추가·채널 추가) / "앱 설정"(API 키, 비밀번호 변경, 오늘 기록, 10분 더 주기, 오늘 기록 초기화, 채널 새로고침, 목록 공유, 다른 기기로 옮기기).
    - 오른쪽: 하루 시청 시간(5~180분, 5분 단위), 하루 영상 개수(1~20개), 영상 끝나면 목록으로, 다음 영상 자동 재생, 쇼츠 숨기기, 쿠키 보상 규칙 2개, "칭찬 쿠키 직접 주기".
 6. **비밀번호 모달** (`#pin`): 큰 숫자 키패드.
 
@@ -71,7 +72,14 @@
 - `pet`: cookies, fed, level
 - `today`: date, watchedSec, watchedCount, bonusSec, finished, reason, cookie
 
-**다른 기기로 옮기기**: 서버가 없으므로 `MUNGCHI1:` + base64(UTF-8 JSON `{settings, items}`) 텍스트 코드로 옮긴다. 가져오면 settings·items를 통째로 바꾸고 cache는 비운다. pet·today는 기기마다 따로라 옮기지 않는다.
+**다른 기기로 옮기기**: 서버가 없으므로 `MUNGCHI1:` + base64(UTF-8 JSON `{settings, items}`) 텍스트 코드로 옮긴다. 가져오면 settings·items를 통째로 바꾸고 cache는 비운다. pet·today와 ghToken·ghUser는 옮기지 않는다(가져와도 그 기기의 토큰은 유지).
+
+**목록 공유**: 저장소 루트의 `channels.json`(`{version:1, items:[...]}`)을 부모님 기기들과 아이 탭이 함께 쓴다. settings에 `shareOn`, `ghToken`, `ghUser` 추가.
+- 읽기: 토큰이 있으면 GitHub Contents API(최신 + sha), 없으면 `raw.githubusercontent.com`(CORS 허용, 최대 5분 캐시). 앱 시작·홈 복귀(1분 간격 제한)·부모님 화면 열 때·앱 복귀 시.
+- 쓰기: 토큰이 있는 기기만. 바꿀 때마다 최신 파일을 받아 변경을 적용하고 sha와 함께 PUT, 409/422면 다시 받아 최대 3번 재시도(동시 수정 합치기). 커밋 메시지 `목록: … 추가 - 제목` 등. 쓰기는 `queued()`로 한 번에 하나씩.
+- 토큰 확인(`verifyToken`): `GET /user`로 계정, `GET /repos/sapock/YoutubeForMyKids`의 `permissions.push`로 쓰기 권한을 확인한 뒤에만 저장. 실제 차단은 GitHub 권한(협업자 목록)이 하며, 소스에 아이디 명단은 두지 않는다.
+- 공유가 켜졌는데 토큰이 없으면 "볼 수 있는 영상"은 보기 전용(추가 칸·별·빼기 숨김, `addItem` 막음).
+- 토큰은 헤더(Authorization)로만 보내고 URL에 넣지 않는다.
 
 API 키와 비밀번호는 소스에 넣지 않고 탭 안에만 저장한다. 저장소가 Public이어도 되는 이유이므로 절대 코드에 키를 하드코딩하지 말 것. API 키는 Google Cloud에서 `https://sapock.github.io/*` 리퍼러로 제한해서 쓴다.
 
@@ -85,5 +93,6 @@ API 키와 비밀번호는 소스에 넣지 않고 탭 안에만 저장한다. �
 ## 작업 방식
 
 - 바뀐 내용은 커밋 메시지를 한국어로 짧게 쓰고 main에 푸시한다(사용자가 다르게 말하면 따른다).
+- 앱이 `channels.json`을 main에 직접 커밋하므로, 작업 전과 푸시 전에 `git pull --rebase`로 먼저 받는다.
 - 화면이나 동작을 크게 바꾸기 전에는 사용자에게 먼저 확인한다.
 - 디자인 원본은 claude.ai 디자인 캔버스에 있다(사용자만 열 수 있음): https://claude.ai/artifact/BcNECwsrH9cnmzgLzvBH9k
