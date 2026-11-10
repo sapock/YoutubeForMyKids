@@ -96,9 +96,6 @@ button:focus-visible,input:focus-visible{outline:4px solid var(--ink);outline-of
 .player-time b{font-family:var(--display);font-weight:400;font-size:30px}
 .video-wrap{flex:1;min-height:0;position:relative;border-radius:24px;overflow:hidden;background:#000}
 .video-wrap iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
-.shield{position:absolute;inset:0;background:transparent;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.shield .big-play{width:140px;height:140px;border-radius:999px;background:rgba(255,255,255,.92);display:none;align-items:center;justify-content:center}
-.shield.paused .big-play{display:flex}
 
 /* ---------- done ---------- */
 #done{flex-direction:column;align-items:center;justify-content:center;gap:16px;background:var(--night);color:var(--white);overflow:hidden}
@@ -247,9 +244,6 @@ textarea.field{flex:none;height:96px;padding:12px 16px;resize:none;font-size:13p
   </div>
   <div class="video-wrap">
     <div id="yt"></div>
-    <button class="shield paused" id="p-shield" aria-label="재생 또는 일시정지">
-      <span class="big-play"><svg width="64" height="64" viewBox="0 0 60 60" aria-hidden="true"><path d="M22 14l24 16-24 16z" fill="#1F3A5F" stroke="#1F3A5F" stroke-width="4" stroke-linejoin="round"/></svg></span>
-    </button>
   </div>
 </section>
 
@@ -818,14 +812,14 @@ async function playVideo(v) {
   if (!player) {
     player = new YT.Player('yt', {
       videoId: v.id,
-      playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, rel: 0, playsinline: 1, iv_load_policy: 3, modestbranding: 1, hl: 'ko', cc_load_policy: 0 },
+      playerVars: { autoplay: 1, controls: 1, disablekb: 1, fs: 0, rel: 0, playsinline: 1, iv_load_policy: 3, modestbranding: 1, hl: 'ko', cc_load_policy: 0 },
       events: { onReady: (e) => e.target.playVideo(), onStateChange: onPlayerState, onError: onPlayerError }
     });
   } else {
     player.loadVideoById(v.id);
   }
 }
-function setPlaying(on) { playing = on; $('#p-shield').classList.toggle('paused', !on); }
+function setPlaying(on) { playing = on; }
 function onPlayerState(e) {
   const S = YT.PlayerState;
   if (e.data === S.PLAYING) {
@@ -863,10 +857,6 @@ function onEnded() {
   if (settings.returnToList) goHome('재밌었어?\n다음엔 뭘 볼까?');
 }
 $('#p-back').addEventListener('click', () => { stopPlayer(); goHome('다음엔 뭘 볼까?'); });
-$('#p-shield').addEventListener('click', () => {
-  if (!player || !player.getPlayerState) return;
-  if (playing) player.pauseVideo(); else player.playVideo();
-});
 
 /* =========================================================
    오늘 끝 + 쿠키
