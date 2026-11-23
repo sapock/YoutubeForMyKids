@@ -165,6 +165,12 @@ textarea.field{flex:none;height:96px;padding:12px 16px;resize:none;font-size:13p
 .keypad{display:grid;grid-template-columns:repeat(3,72px);gap:12px}
 .keypad button{height:64px;border-radius:18px;border:2px solid var(--line);background:var(--white);font-size:26px;font-weight:700;cursor:pointer}
 .keypad button.muted{border:none;font-size:17px;color:var(--ink2)}
+.ev-card{background:linear-gradient(#FFF6D6,#FFE9A8);border:4px solid var(--ink);border-radius:32px;padding:24px 36px 28px;width:min(520px,92vw);display:flex;flex-direction:column;align-items:center;gap:10px;color:var(--ink)}
+.ev-card h2{margin:0;font-family:var(--display);font-weight:400;font-size:38px}
+.ev-card p{margin:0;font-family:var(--display);font-size:24px;text-align:center}
+.ev-dino{width:260px;height:260px}
+.ev-shake{animation:shake .5s 3}
+.ev-pop{animation:hop .7s ease-out 2}
 .toast{position:fixed;left:50%;bottom:calc(28px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--white);padding:14px 22px;border-radius:16px;font-size:17px;z-index:30;opacity:0;pointer-events:none;transition:opacity .2s;max-width:90vw;text-align:center}
 .toast.on{opacity:1}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
@@ -215,7 +221,7 @@ textarea.field{flex:none;height:96px;padding:12px 16px;resize:none;font-size:13p
       <svg class="bubble-tail" width="40" height="20" viewBox="0 0 40 20" aria-hidden="true"><path d="M0 0h40L20 20z" fill="#fff"/></svg>
       <button class="mascot" id="mascot" aria-label="뭉치 쓰다듬기"><div class="body bob" id="mascot-body"></div></button>
       <div class="feedbar">
-        <div class="meter-wrap"><span id="h-grow">뭉치 키우기 0 / 10</span><div class="meter"><i id="h-meter" style="width:0%"></i></div></div>
+        <div class="meter-wrap"><span id="h-stage" style="font-family:var(--display);font-size:19px"></span><span id="h-grow">뭉치 키우기 0 / 10</span><div class="meter"><i id="h-meter" style="width:0%"></i></div></div>
         <button class="btn-feed" id="h-feed"><span id="feed-icon"></span>쿠키 주기</button>
       </div>
     </div>
@@ -261,12 +267,22 @@ textarea.field{flex:none;height:96px;padding:12px 16px;resize:none;font-size:13p
     <span id="d-cookie-icon"></span>
     <div><b>쿠키 1개 받았어!</b><span id="d-cookie-text"></span></div>
   </div>
+  <button class="btn-back" id="d-home">뭉치 보러 가기</button>
   <button class="btn-unlock" id="d-unlock">
     <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#DCE6F4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>부모님 잠금 해제
   </button>
 </section>
 
 <!-- ===== 부모님 설정 ===== -->
+<div class="modal evolve" id="evolve" hidden role="dialog" aria-modal="true" aria-label="뭉치 진화">
+  <div class="ev-card">
+    <h2 id="ev-title"></h2>
+    <div class="ev-dino" id="ev-dino"></div>
+    <p id="ev-name"></p>
+    <button class="btn-back" id="ev-ok">좋아!</button>
+  </div>
+</div>
+
 <section id="parent" class="screen">
   <div class="p-head">
     <h1>부모님 설정</h1>
@@ -414,6 +430,17 @@ const saveToday = () => LS.set('today', today);
 
 const remainingSec = () => Math.max(0, settings.dailyMinutes * 60 + today.bonusSec - today.watchedSec);
 const remainingCount = () => Math.max(0, settings.dailyCount - today.watchedCount);
+// 지금 영상을 볼 수 없는 이유: 'time' | 'count' | 'self' | null.
+// 시간·개수는 설정과 기록으로 그때그때 계산하므로 부모님이 한도를 늘리면 바로 풀린다.
+function blockReason() {
+  if (remainingSec() <= 0) return 'time';
+  if (remainingCount() <= 0) return 'count';
+  if (today.finished && today.reason === 'self') return 'self';
+  return null;
+}
+function syncFinished() {
+  if (today.finished && today.reason !== 'self' && !blockReason()) { today.finished = false; today.reason = null; saveToday(); }
+}
 
 /* =========================================================
    도우미
@@ -442,20 +469,40 @@ function thumbOf(sn) { const t = (sn && sn.thumbnails) || {}; return (t.medium |
    ========================================================= */
 const COOKIE_SVG = (size) => `<svg width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="17" fill="#E8B26A" stroke="#1F3A5F" stroke-width="3"/><circle cx="14" cy="15" r="2.6" fill="#6B3F1F"/><circle cx="25" cy="13" r="2.2" fill="#6B3F1F"/><circle cx="24" cy="24" r="2.8" fill="#6B3F1F"/><circle cx="13" cy="25" r="2" fill="#6B3F1F"/></svg>`;
 const STAR_PATH = 'M12 2.8l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 16.8l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z';
-const DINO_BODY = `
-<ellipse cx="100" cy="193" rx="60" ry="6" fill="#000" opacity=".14"/>
-<path d="M146 168c26 4 44-6 48-30-12 14-28 18-46 14z" fill="#7CCB7E" stroke="#1F3A5F" stroke-width="5" stroke-linejoin="round"/>
-<path d="M176 150l8 2-3 8zM164 160l8 1-3 8z" fill="#FF9A4D" stroke="#1F3A5F" stroke-width="3" stroke-linejoin="round"/>
-<ellipse cx="100" cy="152" rx="54" ry="38" fill="#7CCB7E" stroke="#1F3A5F" stroke-width="5"/>
-<ellipse cx="100" cy="160" rx="32" ry="24" fill="#FFF1C9"/>
-<path d="M84 152h32M86 164h28" stroke="#E9D69E" stroke-width="3" stroke-linecap="round"/>
-<ellipse cx="72" cy="186" rx="17" ry="9" fill="#7CCB7E" stroke="#1F3A5F" stroke-width="5"/>
-<ellipse cx="128" cy="186" rx="17" ry="9" fill="#7CCB7E" stroke="#1F3A5F" stroke-width="5"/>
-<ellipse cx="54" cy="150" rx="9" ry="14" fill="#7CCB7E" stroke="#1F3A5F" stroke-width="5" transform="rotate(25 54 150)"/>
-<ellipse cx="146" cy="150" rx="9" ry="14" fill="#7CCB7E" stroke="#1F3A5F" stroke-width="5" transform="rotate(-25 146 150)"/>
-<path d="M66 44l10-20 12 18zM90 34l12-22 12 22zM114 42l12-18 10 20z" fill="#FF9A4D" stroke="#1F3A5F" stroke-width="4" stroke-linejoin="round"/>
-<ellipse cx="100" cy="88" rx="68" ry="54" fill="#7CCB7E" stroke="#1F3A5F" stroke-width="5"/>
+const STAGE_NAMES = ['아기 뭉치', '어린이 뭉치', '청소년 뭉치', '어른 뭉치'];
+// 진화 4단계: 레벨 1=아기, 2=어린이, 3=청소년, 4 이상=어른 (쿠키 10개마다 1레벨)
+const stageOf = (level) => Math.min(4, Math.max(1, level || 1));
+const STAGE = {   // 머리 크기(s)·머리 중심 y·뿔 크기·몸통 크기
+  1: { s: 1.00, hy: 88, horn: 1.0, bx: 54, by: 38, bcy: 152 },
+  2: { s: 0.88, hy: 80, horn: 1.15, bx: 52, by: 42, bcy: 150 },
+  3: { s: 0.78, hy: 72, horn: 1.3, bx: 54, by: 46, bcy: 148 },
+  4: { s: 0.70, hy: 72, horn: 1.45, bx: 58, by: 50, bcy: 145 }
+};
+function dinoBody(stage) {
+  const g = STAGE[stage] || STAGE[1];
+  const ink = '#1F3A5F', sw = 'stroke="#1F3A5F" stroke-width="5"';
+  const plates = stage >= 3 ? `<path d="M52 ${g.bcy - 24}l-20-12 8 22zM148 ${g.bcy - 24}l20-12-8 22z" fill="#FF9A4D" stroke="${ink}" stroke-width="4" stroke-linejoin="round"/>` : '';
+  const wings = stage >= 4 ? `<path d="M46 ${g.bcy - 20}q-40-6-40 30q22-6 38-4zM154 ${g.bcy - 20}q40-6 40 30q-22-6-38-4z" fill="#FFB877" stroke="${ink}" stroke-width="4" stroke-linejoin="round"/>` : '';
+  const tail = `<path d="M146 168c26 4 44-6 48-30-12 14-28 18-46 14z" fill="#7CCB7E" ${sw} stroke-linejoin="round"/>
+<path d="M176 150l8 2-3 8zM164 160l8 1-3 8z" fill="#FF9A4D" stroke="${ink}" stroke-width="3" stroke-linejoin="round"/>`;
+  const armY = g.bcy - 2, bellyRx = g.bx * 0.6, bellyRy = g.by * 0.64;
+  const star = stage >= 4 ? `<path transform="translate(88.5 ${g.bcy - 3}) scale(.95)" d="${STAR_PATH}" fill="#FFC93C" stroke="${ink}" stroke-width="1.6" stroke-linejoin="round"/>` : '';
+  const stripes = stage >= 2 && stage < 4 ? `<path d="M${100 - bellyRx * .5} ${g.bcy}h${bellyRx}M${100 - bellyRx * .6} ${g.bcy + 12}h${bellyRx * 1.2}" stroke="#E9D69E" stroke-width="3" stroke-linecap="round"/>` : '';
+  const body = `<ellipse cx="100" cy="193" rx="${g.bx + 6}" ry="6" fill="#000" opacity=".14"/>
+${wings}${tail}${plates}
+<ellipse cx="100" cy="${g.bcy}" rx="${g.bx}" ry="${g.by}" fill="#7CCB7E" ${sw}/>
+<ellipse cx="100" cy="${g.bcy + 8}" rx="${bellyRx}" ry="${bellyRy}" fill="#FFF1C9"/>
+${stripes}${star}
+<ellipse cx="${100 - g.bx * .44}" cy="186" rx="${15 + stage * 1.5}" ry="9" fill="#7CCB7E" ${sw}/>
+<ellipse cx="${100 + g.bx * .44}" cy="186" rx="${15 + stage * 1.5}" ry="9" fill="#7CCB7E" ${sw}/>
+<ellipse cx="${100 - g.bx}" cy="${armY}" rx="9" ry="${12 + stage * 2}" fill="#7CCB7E" ${sw} transform="rotate(25 ${100 - g.bx} ${armY})"/>
+<ellipse cx="${100 + g.bx}" cy="${armY}" rx="9" ry="${12 + stage * 2}" fill="#7CCB7E" ${sw} transform="rotate(-25 ${100 + g.bx} ${armY})"/>`;
+  const head = `<g transform="translate(100 ${g.hy}) scale(${g.s}) translate(-100 -88)">
+<g transform="translate(100 50) scale(${g.horn}) translate(-100 -50)"><path d="M66 44l10-20 12 18zM90 34l12-22 12 22zM114 42l12-18 10 20z" fill="#FF9A4D" stroke="${ink}" stroke-width="${4 / g.horn}" stroke-linejoin="round"/></g>
+<ellipse cx="100" cy="88" rx="68" ry="54" fill="#7CCB7E" ${sw}/>
 <circle cx="58" cy="66" r="5" fill="#5BAF62"/><circle cx="146" cy="72" r="4" fill="#5BAF62"/><circle cx="138" cy="60" r="3" fill="#5BAF62"/>`;
+  return { body, head, g };
+}
 const FACES = {
   hello: `<ellipse cx="58" cy="104" rx="12" ry="8" fill="#FF9EAA"/><ellipse cx="142" cy="104" rx="12" ry="8" fill="#FF9EAA"/>
 <circle cx="76" cy="84" r="10" fill="#1F3A5F"/><circle cx="79" cy="80" r="3.5" fill="#fff"/>
@@ -481,9 +528,10 @@ const FACES = {
 <ellipse cx="100" cy="112" rx="6" ry="7" fill="#1F3A5F"/>
 <path d="M156 14h16l-16 18h16M180 0h11l-11 12h11" fill="none" stroke="#FFE9A8" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>`
 };
-function dinoSVG(face, label) {
+function dinoSVG(face, label, stage) {
   const a11y = label ? `role="img" aria-label="${esc(label)}"` : 'aria-hidden="true"';
-  return `<svg viewBox="0 0 200 200" width="100%" height="100%" ${a11y}>${DINO_BODY}${FACES[face] || FACES.hello}</svg>`;
+  const d = dinoBody(stage || stageOf(pet.level));
+  return `<svg viewBox="0 0 200 200" width="100%" height="100%" ${a11y}>${d.body}${d.head}${FACES[face] || FACES.hello}</g></svg>`;
 }
 
 /* =========================================================
@@ -721,18 +769,18 @@ function renderStatus() {
   $('#h-cookies').textContent = pet.cookies;
   $('#h-grow').textContent = '뭉치 키우기 ' + pet.fed + ' / 10';
   $('#h-meter').style.width = (pet.fed * 10) + '%';
-  const scale = Math.min(1.15, 1 + (pet.level - 1) * 0.03);   // 쑥 자랄수록 조금씩 커져요
+  const scale = 1 + (stageOf(pet.level) - 1) * 0.05;   // 진화할수록 조금씩 커져요 (최대 1.15배)
+  $('#h-stage').textContent = STAGE_NAMES[stageOf(pet.level) - 1] + ' · Lv.' + pet.level;
   $('#mascot').style.transform = 'scale(' + scale + ')';
   $('#mascot').style.transformOrigin = '50% 100%';
   const stopBtn = $('#h-stopday');
-  stopBtn.hidden = today.watchedCount === 0;
+  stopBtn.hidden = today.watchedCount === 0 || !!blockReason();
   stopBtn.classList.toggle('confirm', stopConfirm);
   stopBtn.textContent = stopConfirm ? '응, 오늘은 끝낼래' : '오늘은 그만 볼래';
 }
 function renderGridPicked() { $$('.tile').forEach((t) => t.classList.toggle('picked', t.dataset.id === pickedId)); }
 function renderHome() {
-  checkNewDay();
-  if (today.finished) return showDone();
+  checkNewDay(); syncFinished();
   renderStatus();
   $$('.tab-kid').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tab === kidTab)));
   const vids = tabVideos();
@@ -754,14 +802,14 @@ function goHome(msg) {
   show('home');
   renderHome();
   pullShared(false);
-  if (!today.finished) setMood('hello', msg || idleText(), 'bob');
+  setMood('hello', blockReason() ? '오늘은 다 봤어!\n쿠키가 있으면 줘 볼까?' : (msg || idleText()), 'bob');
 }
 
 $('#grid').addEventListener('click', (e) => {
   const tile = e.target.closest('.tile'); if (!tile) return;
   const v = allVideos().find((x) => x.id === tile.dataset.id); if (!v) return;
-  if (remainingCount() <= 0) return finishDay('count');
-  if (remainingSec() <= 0) return finishDay('time');
+  const blocked = blockReason();
+  if (blocked) return finishDay(blocked);
   stopConfirm = false; renderStatus();
   pickedId = v.id; renderGridPicked();
   react('excited', '좋아!\n' + v.title + ' 보러 가자!', 'hop');
@@ -777,9 +825,28 @@ $('#mascot').addEventListener('click', () => react('tickled', '히히, 간지러
 $('#h-feed').addEventListener('click', () => {
   if (pet.cookies <= 0) return react('hello', '쿠키가 없어!\n약속을 지키면 받을 수 있어', 'bob');
   pet.cookies--; pet.fed++;
-  if (pet.fed >= 10) { pet.fed = 0; pet.level++; savePet(); renderStatus(); return react('excited', '와! 배불러!\n뭉치가 쑥 자랐어!', 'hop'); }
+  if (pet.fed >= 10) {
+    const before = stageOf(pet.level);
+    pet.fed = 0; pet.level++; savePet(); renderStatus();
+    if (stageOf(pet.level) > before) return evolve(before, stageOf(pet.level));
+    return react('excited', '와! 배불러!\n뭉치가 쑥 자랐어!', 'hop');
+  }
   savePet(); renderStatus();
   react('eating', '냠냠! 맛있다!', 'munch');
+});
+function evolve(from, to) {
+  clearTimeout(moodTimer);
+  const box = $('#evolve'), pic = $('#ev-dino');
+  $('#ev-title').textContent = '뭉치가 진화했어!';
+  $('#ev-name').textContent = STAGE_NAMES[from - 1] + '  →  ' + STAGE_NAMES[to - 1];
+  pic.innerHTML = dinoSVG('hello', null, from);
+  pic.className = 'ev-dino ev-shake';
+  box.hidden = false;
+  setTimeout(() => { pic.innerHTML = dinoSVG('excited', STAGE_NAMES[to - 1], to); pic.className = 'ev-dino ev-pop'; }, 1800);
+}
+$('#ev-ok').addEventListener('click', () => {
+  $('#evolve').hidden = true;
+  react('excited', '짜잔! 나 이제\n' + STAGE_NAMES[stageOf(pet.level) - 1]  + '야!', 'hop');
 });
 $('#h-stopday').addEventListener('click', () => {
   if (!stopConfirm) { stopConfirm = true; renderStatus(); react('hello', '정말 오늘은 끝낼까?', 'bob'); return; }
@@ -862,9 +929,10 @@ $('#p-back').addEventListener('click', () => { stopPlayer(); goHome('다음엔 �
    오늘 끝 + 쿠키
    ========================================================= */
 function finishDay(reason) {
-  if (!today.finished) {
+  const first = !today.finished;
+  if (first || today.reason !== reason) {
     today.finished = true; today.reason = reason;
-    const earn = !today.cookie && (
+    const earn = first && !today.cookie && (
       (reason === 'count' && settings.cookieOnCount) ||
       (reason === 'self' && settings.cookieOnSelfStop && today.watchedCount > 0));
     if (earn) { today.cookie = true; pet.cookies++; savePet(); }
@@ -881,10 +949,11 @@ function showDone() {
   $('#d-title').textContent = T[0];
   $('#d-text').textContent = T[1];
   $('#d-cookie').hidden = !today.cookie;
-  $('#d-cookie-text').textContent = '내일 뭉치한테 먹여 줘. 지금 모은 쿠키 ' + pet.cookies + '개';
+  $('#d-cookie-text').textContent = '뭉치 화면에서 먹여 줘. 지금 모은 쿠키 ' + pet.cookies + '개';
   show('done');
 }
 $('#d-unlock').addEventListener('click', () => askPin(openParent));
+$('#d-home').addEventListener('click', () => goHome());
 
 /* =========================================================
    부모님 비밀번호
@@ -932,10 +1001,6 @@ function setPTab(t) {
 }
 $$('[data-ptab]').forEach((b) => b.addEventListener('click', () => setPTab(b.dataset.ptab)));
 $('#pa-back').addEventListener('click', () => {
-  checkNewDay();
-  if (today.finished) return showDone();
-  if (remainingCount() <= 0 && today.watchedCount > 0) return finishDay('count');
-  if (remainingSec() <= 0) return finishDay('time');
   goHome();
 });
 
@@ -1120,7 +1185,7 @@ function renderAppTab() {
     !settings.shareOn ? (settings.ghToken ? settings.ghUser + ' 계정 토큰이 있어요. 공유를 켜면 목록을 함께 바꿀 수 있어요.' : '꺼져 있어요. 영상 목록은 이 기기에만 저장돼요.')
     : settings.ghToken ? settings.ghUser + ' 계정으로 연결됨 · 목록을 바꿀 수 있어요' + at
     : '공유 목록을 보기만 해요 (토큰 없음)' + at;
-  $('#pa-today').textContent = '오늘 본 영상 ' + today.watchedCount + '개 · ' + Math.floor(today.watchedSec / 60) + '분 · 남은 시간 ' + Math.ceil(remainingSec() / 60) + '분' + (today.finished ? ' · 오늘 시청 끝남' : '');
+  $('#pa-today').textContent = '오늘 본 영상 ' + today.watchedCount + '개 · ' + Math.floor(today.watchedSec / 60) + '분 · 남은 시간 ' + Math.ceil(remainingSec() / 60) + '분' + (blockReason() ? ' · 오늘 시청 끝남' : '');
 }
 $('#pa-key-save').addEventListener('click', () => {
   settings.apiKey = $('#pa-key').value.trim(); saveSettings(); toast('API 키를 저장했어요'); refreshAll(true);
