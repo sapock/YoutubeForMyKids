@@ -12,9 +12,10 @@
 - `manifest.webmanifest` : PWA 설치 정보 (display: fullscreen)
 - `icon-192.png`, `icon-512.png` : 앱 아이콘 (아기 공룡 얼굴)
 - `channels.json` : 목록 공유를 켜면 앱이 만들고 고치는 공유 영상 목록 (직접 고쳐도 됨, 모양은 아래 "목록 공유" 참고)
+- `assets/` : PNG 캐릭터 그림(투명 512×512). `hero-stage-1~4.png`(그린이), `fairy-stage-1~4.png`(정리요정). 표정별 그림을 추가하면 `hero-stage-1-eating.png`처럼 단계 번호 뒤에 `-표정`을 붙이고 `CHARACTERS`의 `exprs`에 표정 이름을 추가한다.
 - `README.md` : 부모용 설치 안내 (API 키 발급, Pages 배포, 탭 설치, Family Link·앱 고정)
 
-단일 파일 구조와 "서버 없음"은 의도한 설계다. 바꾸려면 먼저 사용자에게 물어볼 것.
+단일 파일 구조와 "서버 없음"은 의도한 설계다(2026-11-24 예외: 캐릭터 PNG는 `assets/`에 둔다, 사용자 승인). 바꾸려면 먼저 사용자에게 물어볼 것.
 
 ## 진행 단계
 
@@ -45,7 +46,14 @@
 - 아이 화면 터치 영역은 크게(최소 48px, 주요 버튼 56px 이상). 이모지는 쓰지 않고 인라인 SVG만 사용.
 - 동작 줄이기 설정(prefers-reduced-motion)을 존중한다.
 
-### 캐릭터 "뭉치"
+### 캐릭터 (뭉치 · 그린이 · 정리요정)
+
+- 부모 설정 "앱 설정" 탭의 "캐릭터 변경하기"로 고른다. **뭉치는 SVG, 그린이·정리요정은 PNG**(`CHARACTERS`, `charHTML()`). PNG는 1~4단계 파일이 모두 있을 때만 선택 목록에 나오고, 없으면 숨는다(앱 시작 때 `probeChars()`로 확인).
+- 쿠키는 공유하고, 캐릭터별로 레벨·게이지(`pet.chars`)를 따로 저장한다. 레벨업은 쿠키 5개마다(`FEED_PER_LEVEL`).
+- PNG에 없는 표정은 hello 그림으로 대신하고, eating은 쿠키 아이콘, sleepy는 어둡게 + Zzz를 얹는다. excited·tickled은 hello 그림에 CSS 움직임만 준다.
+- PNG 캐릭터는 단계별로 그림 크기가 이미 다르므로 CSS 확대를 하지 않는다(뭉치만 단계마다 1.0~1.15배).
+
+#### 뭉치(SVG)
 
 아들이 좋아하는 **아기 공룡**(이 앱 고유 캐릭터, 기존 캐릭터를 따라 하지 않기). 연두 몸 `#7CCB7E`, 주황 등뿔, 크림색 배, 남색 외곽선, 분홍 볼. `DINO_BODY` + `FACES` SVG 문자열로 그린다.
 
@@ -56,7 +64,7 @@
 
 - **제한**: 남은 시간 = 하루 시간 + 보너스 − 실제 재생한 초(재생 중일 때만 1초씩 셈). 영상 개수는 영상이 처음 재생될 때 1 증가. 시간이 0이 되면 즉시 멈추고 끝 화면. 개수를 다 쓰면 그 영상이 끝난 뒤 끝 화면.
 - **쿠키**(하루 최대 1개): 영상 개수를 다 지켜서 끝남(`count`) 또는 아이가 스스로 "오늘은 그만 볼래"(`self`)를 누르면 받음(각각 부모 설정으로 켜고 끔). 시간이 다 돼서 강제로 끝나면(`time`) 받지 못함. 부모가 "칭찬 쿠키"로 직접 줄 수도 있음.
-- **키우기**: 쿠키 주기 1번 = 게이지 1칸. 10칸이 차면 레벨이 오른다. 진화 4단계: Lv1 아기 → Lv2 어린이 → Lv3 청소년 → Lv4+ 어른(`stageOf`, `dinoBody(stage)`로 그림). 단계가 바뀌면 진화 연출(`#evolve`). 단계마다 조금씩 커짐(최대 1.15배). 쿠키가 없을 때 누르면 "약속을 지키면 받을 수 있어"라고 안내.
+- **키우기**: 쿠키 주기 1번 = 게이지 1칸. 5칸이 차면 레벨이 오른다(예전 10칸 기록은 5칸 기준으로 환산해 이어짐). 진화 4단계: Lv1 아기 → Lv2 어린이 → Lv3 청소년 → Lv4+ 어른(`stageOf`, `dinoBody(stage)`로 그림). 단계가 바뀌면 진화 연출(`#evolve`). 단계마다 조금씩 커짐(최대 1.15배). 쿠키가 없을 때 누르면 "약속을 지키면 받을 수 있어"라고 안내.
 - **날짜**: 자정이 지나면 오늘 기록이 자동으로 새로 시작.
 - **채널**: 등록한 채널은 "새 영상 모두 허용"으로만 쓴다(승인 대기 기능은 만들지 않기로 함). 채널 영상 목록은 6시간 캐시.
 - **쇼츠는 제외**: 채널은 쇼츠가 빠진 목록 `UULF`+채널ID 뒷부분을 쓰고, 실패하면 `UU` 목록 + 필터. 검색·링크 추가는 60초 이하이거나 제목에 #shorts가 있으면 제외. shorts 링크는 추가 거부.
@@ -69,7 +77,7 @@
 - `settings`: pin, apiKey, dailyMinutes, dailyCount, returnToList, autoplay, hideShorts, cookieOnSelfStop, cookieOnCount
 - `items`: 허용 목록 `[{uid:'video:ID'|'playlist:ID'|'channel:UC…', type, ytId, title, thumb, fav}]`
 - `cache`: `{uid: {at, videos:[{id,title,thumb}]}}`
-- `pet`: cookies, fed, level
+- `pet`: cookies, fed, level(지금 고른 캐릭터의 값), char(캐릭터 아이디), chars(다른 캐릭터의 {fed, level}), v(2부터 5칸 기준)
 - `today`: date, watchedSec, watchedCount, bonusSec, finished, reason, cookie
 
 **다른 기기로 옮기기**: 서버가 없으므로 `MUNGCHI1:` + base64(UTF-8 JSON `{settings, items}`) 텍스트 코드로 옮긴다. 가져오면 settings·items를 통째로 바꾸고 cache는 비운다. pet·today와 ghToken·ghUser는 옮기지 않는다(가져와도 그 기기의 토큰은 유지).
@@ -99,7 +107,12 @@ API 키와 비밀번호는 소스에 넣지 않고 탭 안에만 저장한다. �
 - 아이 홈: 모든 채널 랜덤 섞기, "새로고침" 버튼(순서만 다시 섞음, API 호출 없음), 즐겨찾기는 "좋아하는 영상" 탭에만(`53cb9b0`).
 - 목록 공유(GitHub `channels.json` + 토큰 권한 확인) 추가(`1f7f6ba`). 가짜 GitHub API로만 테스트함.
 
+### 2026-11-24
+- 뭉치 진화 4단계, 한도 소진 후에도 아이 홈 유지(`blockReason()`).
+- 쿠키 5개 레벨업, 캐릭터 변경하기(뭉치/그린이/정리요정), PNG 캐릭터 지원. 그린이·정리요정 PNG는 이미지 AI가 만든 것을 사용자가 전달 예정(`assets/`).
+
 ### 다음에 할 일
+- 그린이·정리요정 PNG를 `assets/`에 넣고 크기·투명도·발끝 위치 확인(파일명 `hero-stage-N.png`, `fairy-stage-N.png`).
 - 사용자가 실제 토큰을 만들어 목록 공유를 켜 보고 확인(내 폰: fine-grained 토큰, 남편: 협업자 초대 + classic `public_repo` 토큰, 아이 탭: 토큰 없이 공유만 켜기). 문제가 있으면 여기서부터 고친다.
 - 갤럭시 탭 실제 기기 테스트(옮기기 코드 가져오기, 새로고침 버튼, 공유 목록 반영).
 - 공유를 켜면 `channels.json`이 생기므로 작업 시작 전에 `git pull --rebase`.

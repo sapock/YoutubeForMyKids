@@ -45,6 +45,18 @@ button:focus-visible,input:focus-visible{outline:4px solid var(--ink);outline-of
 .mascot{border:none;background:transparent;padding:0;cursor:pointer;width:var(--dino,270px);height:var(--dino,270px)}
 .mascot .body{width:100%;height:100%;transform-origin:50% 92%}
 .mascot svg{width:100%;height:100%;display:block}
+.cimg{position:relative;width:100%;height:100%}
+.cimg img{width:100%;height:100%;object-fit:contain;display:block;-webkit-user-drag:none;user-select:none;pointer-events:none}
+.cimg.dim img{filter:brightness(.78) saturate(.85)}
+.cimg .over{position:absolute;display:block}
+.cimg .zzz{right:8%;top:6%;width:24%;height:auto}
+.cimg .cookie{right:16%;bottom:28%}
+#pa-char-sec{display:flex;flex-direction:column;gap:14px}
+.char-pick{display:flex;gap:12px;flex-wrap:wrap}
+.char-btn{width:150px;border:3px solid var(--line);border-radius:18px;background:var(--white);padding:8px 8px 10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink);font-size:16px}
+.char-btn[aria-pressed="true"]{border-color:var(--orange);background:#FFF4E8}
+.char-btn .thumb{width:100px;height:100px}
+.char-btn b{font-size:18px}
 .feedbar{width:100%;background:var(--white);border-radius:24px;padding:12px 14px 12px 18px;display:flex;align-items:center;gap:14px}
 .feedbar .meter-wrap{flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;font-size:17px;font-weight:700}
 .meter{height:14px;border-radius:999px;background:#E3EDF5;overflow:hidden}
@@ -330,6 +342,11 @@ textarea.field{flex:none;height:96px;padding:12px 16px;resize:none;font-size:13p
           <input id="pa-pin" class="field" type="password" inputmode="numeric" maxlength="4" placeholder="새 비밀번호 4자리">
           <button class="btn-ink" id="pa-pin-save">바꾸기</button>
         </div>
+        <div id="pa-char-sec">
+          <div class="sep"></div>
+          <h2>캐릭터 변경하기</h2>
+          <div class="char-pick" id="pa-chars"></div>
+        </div>
         <div class="sep"></div>
         <h2>오늘 기록</h2>
         <span class="hint" id="pa-today" style="font-size:16px"></span>
@@ -415,7 +432,8 @@ const DEFAULTS = {
 let settings = Object.assign({}, DEFAULTS, LS.get('settings', {}));
 let items = LS.get('items', []);          // 부모님이 허용한 영상·재생목록·채널
 let cache = LS.get('cache', {});          // 재생목록·채널의 영상 목록 캐시
-let pet = Object.assign({ cookies: 0, fed: 0, level: 1 }, LS.get('pet', {}));
+let pet = Object.assign({ cookies: 0, fed: 0, level: 1, char: 'mungchi', chars: {}, v: 1 }, LS.get('pet', {}));
+const FEED_PER_LEVEL = 5;   // 쿠키 5개마다 레벨업 (예전에는 10개)
 let today = loadToday();
 
 function dayKey() { const d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
@@ -426,6 +444,10 @@ const saveSettings = () => LS.set('settings', settings);
 const saveItems = () => LS.set('items', items);
 const saveCache = () => LS.set('cache', cache);
 const savePet = () => LS.set('pet', pet);
+if (pet.v < 2) {   // 예전 10개 기준 기록을 5개 기준으로 환산 (먹인 쿠키 수는 그대로 인정)
+  const total = (pet.level - 1) * 10 + pet.fed;
+  pet.level = 1 + Math.floor(total / FEED_PER_LEVEL); pet.fed = total % FEED_PER_LEVEL; pet.v = 2; savePet();
+}
 const saveToday = () => LS.set('today', today);
 
 const remainingSec = () => Math.max(0, settings.dailyMinutes * 60 + today.bonusSec - today.watchedSec);
@@ -469,7 +491,42 @@ function thumbOf(sn) { const t = (sn && sn.thumbnails) || {}; return (t.medium |
    ========================================================= */
 const COOKIE_SVG = (size) => `<svg width="${size}" height="${size}" viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="17" fill="#E8B26A" stroke="#1F3A5F" stroke-width="3"/><circle cx="14" cy="15" r="2.6" fill="#6B3F1F"/><circle cx="25" cy="13" r="2.2" fill="#6B3F1F"/><circle cx="24" cy="24" r="2.8" fill="#6B3F1F"/><circle cx="13" cy="25" r="2" fill="#6B3F1F"/></svg>`;
 const STAR_PATH = 'M12 2.8l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 16.8l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z';
-const STAGE_NAMES = ['아기 뭉치', '어린이 뭉치', '청소년 뭉치', '어른 뭉치'];
+const STAGE_LABELS = ['아기', '어린이', '청소년', '어른'];
+// 캐릭터 목록. 뭉치는 SVG, 나머지는 assets/ 의 PNG(투명 512x512).
+// PNG 캐릭터는 1~4단계 파일이 모두 있을 때만 선택 목록에 나온다(없으면 자동으로 숨김).
+// exprs: 표정별 PNG가 있는 표정. 없는 표정은 hello 이미지에 효과를 얹어 보여 준다.
+//   표정 파일 이름: assets/hero-stage-1-eating.png 처럼 단계 번호 뒤에 -표정
+const CHARACTERS = {
+  mungchi: { name: '뭉치', kind: 'svg', ready: true },
+  hero: { name: '그린이', kind: 'png', prefix: 'assets/hero-stage-', exprs: ['hello'], ready: false },
+  fairy: { name: '정리요정', kind: 'png', prefix: 'assets/fairy-stage-', exprs: ['hello'], ready: false }
+};
+const curChar = () => (CHARACTERS[pet.char] && CHARACTERS[pet.char].ready) ? pet.char : 'mungchi';
+const cname = () => CHARACTERS[curChar()].name;
+const stageName = (id, stage) => STAGE_LABELS[stage - 1] + ' ' + CHARACTERS[id].name;
+const hasBatchim = (w) => { const c = w.charCodeAt(w.length - 1) - 0xAC00; return c >= 0 && c % 28 !== 0; };
+const josa = (w, a, b) => w + (hasBatchim(w) ? a : b);   // josa('뭉치','이','가')
+function charState(id) { return id === curChar() ? { fed: pet.fed, level: pet.level } : (pet.chars[id] || { fed: 0, level: 1 }); }
+function setCharacter(id) {
+  const c = CHARACTERS[id]; if (!c || !c.ready) return;
+  pet.chars[curChar()] = { fed: pet.fed, level: pet.level };
+  const st = pet.chars[id] || { fed: 0, level: 1 };
+  pet.char = id; pet.fed = st.fed; pet.level = st.level; savePet();
+}
+function probeChars() {   // PNG 캐릭터 이미지가 다 있는지 확인
+  const load = (src) => new Promise((ok) => { const im = new Image(); im.onload = () => ok(true); im.onerror = () => ok(false); setTimeout(() => ok(false), 4000); im.src = src; });
+  return Promise.all(Object.values(CHARACTERS).filter((c) => c.kind === 'png').map(async (c) => {
+    const r = await Promise.all([1, 2, 3, 4].map((n) => load(c.prefix + n + '.png')));
+    c.ready = r.every(Boolean);
+  })).then(() => {
+    if (!CHARACTERS[pet.char] || !CHARACTERS[pet.char].ready) {   // 고른 캐릭터 그림이 없어졌으면 뭉치로
+      pet.chars[pet.char] = { fed: pet.fed, level: pet.level };
+      const st = pet.chars.mungchi || { fed: 0, level: 1 };
+      pet.char = 'mungchi'; pet.fed = st.fed; pet.level = st.level; savePet();
+    }
+  });
+}
+const ZZZ_SVG = '<svg class="over zzz" viewBox="0 0 60 50" aria-hidden="true"><path d="M4 8h22L4 32h22M36 0h14L36 16h14" fill="none" stroke="#FFE9A8" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 // 진화 4단계: 레벨 1=아기, 2=어린이, 3=청소년, 4 이상=어른 (쿠키 10개마다 1레벨)
 const stageOf = (level) => Math.min(4, Math.max(1, level || 1));
 const STAGE = {   // 머리 크기(s)·머리 중심 y·뿔 크기·몸통 크기
@@ -532,6 +589,17 @@ function dinoSVG(face, label, stage) {
   const a11y = label ? `role="img" aria-label="${esc(label)}"` : 'aria-hidden="true"';
   const d = dinoBody(stage || stageOf(pet.level));
   return `<svg viewBox="0 0 200 200" width="100%" height="100%" ${a11y}>${d.body}${d.head}${FACES[face] || FACES.hello}</g></svg>`;
+}
+
+function charHTML(face, label, stage, id) {
+  id = id || curChar(); stage = stage || stageOf(pet.level);
+  const c = CHARACTERS[id];
+  if (c.kind === 'svg') return dinoSVG(face, label, stage);
+  const has = c.exprs.includes(face);
+  const src = c.prefix + stage + (has && face !== 'hello' ? '-' + face : '') + '.png';
+  const over = has ? '' : face === 'sleepy' ? ZZZ_SVG : face === 'eating' ? '<span class="over cookie">' + COOKIE_SVG(56) + '</span>' : '';
+  const alt = label ? 'alt="' + esc(label) + '"' : 'alt="" aria-hidden="true"';
+  return '<div class="cimg' + (!has && face === 'sleepy' ? ' dim' : '') + '"><img src="' + esc(src) + '" ' + alt + ' draggable="false">' + over + '</div>';
 }
 
 /* =========================================================
@@ -748,7 +816,7 @@ function allVideos() {
 const tabVideos = () => allVideos().filter((v) => (kidTab === 'fav') === v.fav);
 function setMood(face, text, anim) {
   const body = $('#mascot-body');
-  body.innerHTML = dinoSVG(face);
+  body.innerHTML = charHTML(face);
   body.className = 'body';
   void body.offsetWidth;                      // 애니메이션 다시 시작
   body.className = 'body ' + (anim || 'bob');
@@ -767,10 +835,11 @@ function renderStatus() {
   $('#h-left').textContent = remainingCount();
   $('#h-time').textContent = Math.ceil(remainingSec() / 60);
   $('#h-cookies').textContent = pet.cookies;
-  $('#h-grow').textContent = '뭉치 키우기 ' + pet.fed + ' / 10';
-  $('#h-meter').style.width = (pet.fed * 10) + '%';
-  const scale = 1 + (stageOf(pet.level) - 1) * 0.05;   // 진화할수록 조금씩 커져요 (최대 1.15배)
-  $('#h-stage').textContent = STAGE_NAMES[stageOf(pet.level) - 1] + ' · Lv.' + pet.level;
+  $('#h-grow').textContent = cname() + ' 키우기 ' + pet.fed + ' / ' + FEED_PER_LEVEL;
+  $('#h-meter').style.width = (pet.fed * 100 / FEED_PER_LEVEL) + '%';
+  $('#mascot').setAttribute('aria-label', cname() + ' 쓰다듬기');
+  const scale = curChar() === 'mungchi' ? 1 + (stageOf(pet.level) - 1) * 0.05 : 1;   // PNG는 그림 안에서 이미 자람   // 진화할수록 조금씩 커져요 (최대 1.15배)
+  $('#h-stage').textContent = stageName(curChar(), stageOf(pet.level)) + ' · Lv.' + pet.level;
   $('#mascot').style.transform = 'scale(' + scale + ')';
   $('#mascot').style.transformOrigin = '50% 100%';
   const stopBtn = $('#h-stopday');
@@ -825,11 +894,11 @@ $('#mascot').addEventListener('click', () => react('tickled', '히히, 간지러
 $('#h-feed').addEventListener('click', () => {
   if (pet.cookies <= 0) return react('hello', '쿠키가 없어!\n약속을 지키면 받을 수 있어', 'bob');
   pet.cookies--; pet.fed++;
-  if (pet.fed >= 10) {
+  if (pet.fed >= FEED_PER_LEVEL) {
     const before = stageOf(pet.level);
     pet.fed = 0; pet.level++; savePet(); renderStatus();
     if (stageOf(pet.level) > before) return evolve(before, stageOf(pet.level));
-    return react('excited', '와! 배불러!\n뭉치가 쑥 자랐어!', 'hop');
+    return react('excited', '와! 배불러!\n' + josa(cname(), '이', '가') + ' 쑥 자랐어!', 'hop');
   }
   savePet(); renderStatus();
   react('eating', '냠냠! 맛있다!', 'munch');
@@ -837,16 +906,17 @@ $('#h-feed').addEventListener('click', () => {
 function evolve(from, to) {
   clearTimeout(moodTimer);
   const box = $('#evolve'), pic = $('#ev-dino');
-  $('#ev-title').textContent = '뭉치가 진화했어!';
-  $('#ev-name').textContent = STAGE_NAMES[from - 1] + '  →  ' + STAGE_NAMES[to - 1];
-  pic.innerHTML = dinoSVG('hello', null, from);
+  $('#ev-title').textContent = josa(cname(), '이', '가') + ' 진화했어!';
+  const id = curChar();
+  $('#ev-name').textContent = stageName(id, from) + '  →  ' + stageName(id, to);
+  pic.innerHTML = charHTML('hello', null, from, id);
   pic.className = 'ev-dino ev-shake';
   box.hidden = false;
-  setTimeout(() => { pic.innerHTML = dinoSVG('excited', STAGE_NAMES[to - 1], to); pic.className = 'ev-dino ev-pop'; }, 1800);
+  setTimeout(() => { pic.innerHTML = charHTML('excited', stageName(id, to), to, id); pic.className = 'ev-dino ev-pop'; }, 1800);
 }
 $('#ev-ok').addEventListener('click', () => {
   $('#evolve').hidden = true;
-  react('excited', '짜잔! 나 이제\n' + STAGE_NAMES[stageOf(pet.level) - 1]  + '야!', 'hop');
+  react('excited', '짜잔! 나 이제\n' + josa(stageName(curChar(), stageOf(pet.level)), '이야', '야') + '!', 'hop');
 });
 $('#h-stopday').addEventListener('click', () => {
   if (!stopConfirm) { stopConfirm = true; renderStatus(); react('hello', '정말 오늘은 끝낼까?', 'bob'); return; }
@@ -942,14 +1012,16 @@ function finishDay(reason) {
 }
 function showDone() {
   const T = {
-    count: ['약속을 잘 지켰어요!', '오늘 볼 영상을 다 봤어. 뭉치는 이제 잘 시간이야.'],
-    self: ['스스로 끝냈구나, 멋져!', '뭉치는 이제 잘 시간이야. 내일 또 같이 보자!'],
-    time: ['오늘 시간이 다 됐어요', '뭉치는 이제 잘 시간이야. 내일 또 같이 보자!']
+    count: ['약속을 잘 지켰어요!', '오늘 볼 영상을 다 봤어. ' + josa(cname(), '은', '는') + ' 이제 잘 시간이야.'],
+    self: ['스스로 끝냈구나, 멋져!', josa(cname(), '은', '는') + ' 이제 잘 시간이야. 내일 또 같이 보자!'],
+    time: ['오늘 시간이 다 됐어요', josa(cname(), '은', '는') + ' 이제 잘 시간이야. 내일 또 같이 보자!']
   }[today.reason] || ['오늘은 여기까지!', '내일 또 같이 보자!'];
   $('#d-title').textContent = T[0];
   $('#d-text').textContent = T[1];
+  $('#done-dino').innerHTML = charHTML('sleepy', '잠든 ' + cname());
+  $('#d-home').textContent = cname() + ' 보러 가기';
   $('#d-cookie').hidden = !today.cookie;
-  $('#d-cookie-text').textContent = '뭉치 화면에서 먹여 줘. 지금 모은 쿠키 ' + pet.cookies + '개';
+  $('#d-cookie-text').textContent = '홈 화면에서 먹여 줘. 지금 모은 쿠키 ' + pet.cookies + '개';
   show('done');
 }
 $('#d-unlock').addEventListener('click', () => askPin(openParent));
@@ -1174,7 +1246,22 @@ $$('[data-opt]').forEach((c) => c.addEventListener('change', () => {
 $('#pa-gift').addEventListener('click', () => { pet.cookies++; savePet(); renderRules(); toast('칭찬 쿠키 1개를 줬어요'); });
 
 // 앱 설정
+function renderChars() {
+  const ids = Object.keys(CHARACTERS).filter((id) => CHARACTERS[id].ready);
+  $('#pa-char-sec').style.display = ids.length > 1 ? '' : 'none';
+  $('#pa-chars').innerHTML = ids.map((id) => {
+    const st = charState(id);
+    return '<button class="char-btn" data-char="' + id + '" aria-pressed="' + (id === curChar()) + '"><div class="thumb">' +
+      charHTML('hello', null, stageOf(st.level), id) + '</div><b>' + esc(CHARACTERS[id].name) + '</b><span>Lv.' + st.level + '</span></button>';
+  }).join('');
+}
+$('#pa-chars').addEventListener('click', (e) => {
+  const b = e.target.closest('.char-btn'); if (!b) return;
+  setCharacter(b.dataset.char); renderChars(); renderRules();
+  toast('캐릭터를 ' + CHARACTERS[curChar()].name + '(으)로 바꿨어요');
+});
 function renderAppTab() {
+  renderChars();
   $('#pa-key').value = settings.apiKey || '';
   $('#pa-share').checked = !!settings.shareOn;
   $('#pa-gh').placeholder = settings.ghToken ? '저장된 토큰 있음 (' + settings.ghUser + ') · 바꾸려면 새 토큰 입력' : 'GitHub 토큰 (목록을 바꿀 부모님 폰에만)';
@@ -1322,11 +1409,12 @@ document.addEventListener('visibilitychange', () => {
   $('#h-cookie-icon').innerHTML = COOKIE_SVG(36);
   $('#feed-icon').innerHTML = COOKIE_SVG(34);
   $('#d-cookie-icon').innerHTML = COOKIE_SVG(64);
-  $('#done-dino').innerHTML = dinoSVG('sleepy', '잠든 아기 공룡 뭉치');
-  $('#setup-dino').innerHTML = dinoSVG('hello', '아기 공룡 뭉치');
-  if (!settings.pin) { show('setup'); return; }
-  goHome();
-  refreshAll(false);
+  $('#setup-dino').innerHTML = dinoSVG('hello', '아기 공룡 뭉치', 1);
+  probeChars().then(() => {   // 새 캐릭터 그림이 있는지 확인한 뒤 시작
+    if (!settings.pin) { show('setup'); return; }
+    goHome();
+    refreshAll(false);
+  });
 })();
 </script>
 </body>
