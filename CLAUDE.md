@@ -50,7 +50,7 @@
 
 - 부모 설정 "앱 설정" 탭의 "캐릭터 변경하기"로 고른다. **뭉치는 SVG, 그린이·정리요정은 PNG**(`CHARACTERS`, `charHTML()`). PNG는 1~4단계 파일이 모두 있을 때만 선택 목록에 나오고, 없으면 숨는다(앱 시작 때 `probeChars()`로 확인).
 - 쿠키는 공유하고, 캐릭터별로 레벨·게이지(`pet.chars`)를 따로 저장한다. 레벨업은 쿠키 5개마다(`FEED_PER_LEVEL`).
-- 표정별 PNG: hello=base, excited(영상 고를 때·진화), eating(쿠키 먹일 때), sleepy(시청 끝 화면). tickled은 PNG가 없어서 base 그림에 CSS 흔들기만 준다. `exprs`에 없는 표정은 hello 그림으로 대신하고 eating은 쿠키 아이콘, sleepy는 어둡게 + Zzz를 얹는다. 지금 단계와 다음 단계 그림은 `preloadChar()`로 미리 받는다.
+- 표정별 PNG: hello=base, excited(영상 고를 때·진화), eating(쿠키 먹일 때), sleepy(시청 끝 화면). tickled(쓰다듬기)는 PNG가 없어서 excited 그림 + CSS 흔들기. 기기의 "동작 줄이기"가 켜져 있으면 흔들기는 꺼지고 그림만 바뀐다. `exprs`에 없는 표정은 hello 그림으로 대신하고 eating은 쿠키 아이콘, sleepy는 어둡게 + Zzz를 얹는다. 지금 단계와 다음 단계 그림은 `preloadChar()`로 미리 받는다.
 - PNG 캐릭터는 단계별로 그림 크기가 이미 다르므로 CSS 확대를 하지 않는다(뭉치만 단계마다 1.0~1.15배).
 
 #### 뭉치(SVG)

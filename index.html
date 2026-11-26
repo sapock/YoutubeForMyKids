@@ -495,7 +495,7 @@ const STAGE_LABELS = ['아기', '어린이', '청소년', '어른'];
 // 캐릭터 목록. 뭉치는 SVG, 나머지는 assets/<캐릭터>/<표정>-<단계>.png (투명 512x512).
 // PNG 캐릭터는 base-1~4 파일이 모두 있을 때만 선택 목록에 나온다(없으면 자동으로 숨김).
 // exprs: 표정별 PNG가 있는 표정(hello는 base-N.png). 없는 표정은 hello 그림으로 대신하고
-//   eating은 쿠키 아이콘, sleepy는 어둡게 + Zzz를 얹는다. tickled은 hello 그림에 CSS 움직임만 준다.
+//   eating은 쿠키 아이콘, sleepy는 어둡게 + Zzz를 얹는다. tickled은 excited 그림을 쓰고 CSS 흔들기를 더한다.
 const CHARACTERS = {
   mungchi: { name: '뭉치', kind: 'svg', ready: true },
   hero: { name: '그린이', kind: 'png', dir: 'assets/hero/', exprs: ['hello', 'excited', 'eating', 'sleepy'], ready: false },
@@ -603,6 +603,7 @@ function charHTML(face, label, stage, id) {
   id = id || curChar(); stage = stage || stageOf(pet.level);
   const c = CHARACTERS[id];
   if (c.kind === 'svg') return dinoSVG(face, label, stage);
+  if (face === 'tickled' && !c.exprs.includes('tickled')) face = 'excited';   // 간지러워: 웃는 그림으로 바꾸고 흔들기는 CSS가 담당
   const has = c.exprs.includes(face);
   const src = charFile(c, has ? face : 'hello', stage);
   const over = has ? '' : face === 'sleepy' ? ZZZ_SVG : face === 'eating' ? '<span class="over cookie">' + COOKIE_SVG(56) + '</span>' : '';
