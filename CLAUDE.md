@@ -12,7 +12,7 @@
 - `manifest.webmanifest` : PWA 설치 정보 (display: fullscreen)
 - `icon-192.png`, `icon-512.png` : 앱 아이콘 (아기 공룡 얼굴)
 - `channels.json` : 목록 공유를 켜면 앱이 만들고 고치는 공유 영상 목록 (직접 고쳐도 됨, 모양은 아래 "목록 공유" 참고)
-- `assets/` : PNG 캐릭터 그림(투명 512×512). `hero-stage-1~4.png`(그린이), `fairy-stage-1~4.png`(정리요정). 표정별 그림을 추가하면 `hero-stage-1-eating.png`처럼 단계 번호 뒤에 `-표정`을 붙이고 `CHARACTERS`의 `exprs`에 표정 이름을 추가한다.
+- `assets/` : PNG 캐릭터 그림(투명 512×512). `assets/hero/`(그린이), `assets/fairy/`(정리요정) 안에 `base-N.png`(평소), `excited-N.png`, `eating-N.png`, `sleepy-N.png` (N=1~4단계) 총 32장. 표정을 더 추가하면 `tickled-N.png`처럼 올리고 `CHARACTERS`의 `exprs`에 표정 이름을 추가한다.
 - `README.md` : 부모용 설치 안내 (API 키 발급, Pages 배포, 탭 설치, Family Link·앱 고정)
 
 단일 파일 구조와 "서버 없음"은 의도한 설계다(2026-11-24 예외: 캐릭터 PNG는 `assets/`에 둔다, 사용자 승인). 바꾸려면 먼저 사용자에게 물어볼 것.
@@ -50,7 +50,7 @@
 
 - 부모 설정 "앱 설정" 탭의 "캐릭터 변경하기"로 고른다. **뭉치는 SVG, 그린이·정리요정은 PNG**(`CHARACTERS`, `charHTML()`). PNG는 1~4단계 파일이 모두 있을 때만 선택 목록에 나오고, 없으면 숨는다(앱 시작 때 `probeChars()`로 확인).
 - 쿠키는 공유하고, 캐릭터별로 레벨·게이지(`pet.chars`)를 따로 저장한다. 레벨업은 쿠키 5개마다(`FEED_PER_LEVEL`).
-- PNG에 없는 표정은 hello 그림으로 대신하고, eating은 쿠키 아이콘, sleepy는 어둡게 + Zzz를 얹는다. excited·tickled은 hello 그림에 CSS 움직임만 준다.
+- 표정별 PNG: hello=base, excited(영상 고를 때·진화), eating(쿠키 먹일 때), sleepy(시청 끝 화면). tickled은 PNG가 없어서 base 그림에 CSS 흔들기만 준다. `exprs`에 없는 표정은 hello 그림으로 대신하고 eating은 쿠키 아이콘, sleepy는 어둡게 + Zzz를 얹는다. 지금 단계와 다음 단계 그림은 `preloadChar()`로 미리 받는다.
 - PNG 캐릭터는 단계별로 그림 크기가 이미 다르므로 CSS 확대를 하지 않는다(뭉치만 단계마다 1.0~1.15배).
 
 #### 뭉치(SVG)
@@ -113,6 +113,9 @@ API 키와 비밀번호는 소스에 넣지 않고 탭 안에만 저장한다. �
 
 ### 2026-11-25
 - 그린이·정리요정 PNG 8장 반영(hello 표정만 있음). 그린이 1단계에 떠돌던 잔여 조각을 지움. 표정별 그림(eating, sleepy 등)은 아직 없음: 추가하면 `assets/hero-stage-1-eating.png`처럼 올리고 `CHARACTERS`의 `exprs`에 표정 이름을 추가.
+
+### 2026-11-26
+- 그린이·정리요정 표정별 PNG(excited, eating, sleepy) 24장 추가, 폴더 구조를 `assets/<캐릭터>/<표정>-<단계>.png`로 바꿈. 정리 과정에서 base·excited의 떠돌이 조각만 지움(eating의 쿠키 부스러기와 sleepy의 Zzz는 원본 그대로).
 
 ### 다음에 할 일
 - 사용자가 실제 토큰을 만들어 목록 공유를 켜 보고 확인(내 폰: fine-grained 토큰, 남편: 협업자 초대 + classic `public_repo` 토큰, 아이 탭: 토큰 없이 공유만 켜기). 문제가 있으면 여기서부터 고친다.
