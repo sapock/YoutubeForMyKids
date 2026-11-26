@@ -42,6 +42,23 @@ button:focus-visible,input:focus-visible{outline:4px solid var(--ink);outline-of
 .pet-col{width:350px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px}
 .bubble{background:var(--white);border-radius:30px;padding:18px 24px;font-family:var(--display);font-size:27px;line-height:1.3;text-align:center;width:100%;min-height:108px;display:flex;align-items:center;justify-content:center;white-space:pre-line}
 .bubble-tail{margin-top:-6px}
+.mascot-wrap{position:relative;width:var(--dino,270px);height:var(--dino,270px);flex-shrink:0}
+.mascot-wrap .mascot{width:100%;height:100%}
+.swap-btn{position:absolute;left:-6px;bottom:6px;width:76px;height:76px;border-radius:50%;border:3px solid var(--ink);background:var(--white);padding:6px;cursor:pointer;box-shadow:0 3px 0 rgba(31,58,95,.25)}
+.swap-btn[hidden]{display:none}
+.swap-btn .thumb{width:100%;height:100%;border-radius:50%;overflow:hidden}
+.swap-btn .thumb .cimg img,.swap-btn .thumb svg{transform:scale(2.3);transform-origin:50% 30%}
+.swap-btn .badge{position:absolute;right:-8px;bottom:-6px;width:32px;height:32px;border-radius:50%;background:var(--orange);border:3px solid var(--ink);display:flex;align-items:center;justify-content:center}
+.swap-btn:active{transform:translateY(2px);box-shadow:none}
+.cp-card{background:var(--white);border-radius:32px;padding:26px 30px 28px;width:min(760px,94vw);display:flex;flex-direction:column;align-items:center;gap:18px;color:var(--ink)}
+.cp-card h2{margin:0;font-family:var(--display);font-weight:400;font-size:34px}
+.cp-list{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;width:100%}
+.cp-item{width:210px;border:4px solid var(--line);border-radius:26px;background:var(--white);padding:12px 12px 14px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--ink)}
+.cp-item[aria-pressed="true"]{border-color:var(--orange);background:#FFF4E8}
+.cp-item .pic{width:150px;height:150px}
+.cp-item b{font-family:var(--display);font-weight:400;font-size:27px;line-height:1.2}
+.cp-item span{font-size:17px;color:var(--ink2)}
+.cp-item .meter{width:100%;margin-top:4px}
 .mascot{border:none;background:transparent;padding:0;cursor:pointer;width:var(--dino,270px);height:var(--dino,270px)}
 .mascot .body{width:100%;height:100%;transform-origin:50% 92%}
 .mascot svg{width:100%;height:100%;display:block}
@@ -231,7 +248,10 @@ textarea.field{flex:none;height:96px;padding:12px 16px;resize:none;font-size:13p
     <div class="pet-col">
       <div class="bubble" id="bubble" aria-live="polite">안녕! 오늘은 뭘 볼까?</div>
       <svg class="bubble-tail" width="40" height="20" viewBox="0 0 40 20" aria-hidden="true"><path d="M0 0h40L20 20z" fill="#fff"/></svg>
-      <button class="mascot" id="mascot" aria-label="뭉치 쓰다듬기"><div class="body bob" id="mascot-body"></div></button>
+      <div class="mascot-wrap">
+        <button class="mascot" id="mascot" aria-label="뭉치 쓰다듬기"><div class="body bob" id="mascot-body"></div></button>
+        <button class="swap-btn" id="h-swap" aria-label="친구 바꾸기" hidden></button>
+      </div>
       <div class="feedbar">
         <div class="meter-wrap"><span id="h-stage" style="font-family:var(--display);font-size:19px;white-space:nowrap"></span><span id="h-grow">뭉치 키우기 0 / 10</span><div class="meter"><i id="h-meter" style="width:0%"></i></div></div>
         <button class="btn-feed" id="h-feed"><span id="feed-icon"></span>쿠키 주기</button>
@@ -286,6 +306,14 @@ textarea.field{flex:none;height:96px;padding:12px 16px;resize:none;font-size:13p
 </section>
 
 <!-- ===== 부모님 설정 ===== -->
+<div class="modal" id="charpick" hidden role="dialog" aria-modal="true" aria-label="친구 고르기">
+  <div class="cp-card">
+    <h2>함께할 친구를 골라 봐!</h2>
+    <div class="cp-list" id="cp-list"></div>
+    <button class="btn-back" id="cp-close">닫기</button>
+  </div>
+</div>
+
 <div class="modal evolve" id="evolve" hidden role="dialog" aria-modal="true" aria-label="뭉치 진화">
   <div class="ev-card">
     <h2 id="ev-title"></h2>
@@ -847,6 +875,7 @@ function renderStatus() {
   $('#h-grow').textContent = 'Lv.' + pet.level + ' · 키우기 ' + pet.fed + ' / ' + FEED_PER_LEVEL;
   $('#h-meter').style.width = (pet.fed * 100 / FEED_PER_LEVEL) + '%';
   $('#mascot').setAttribute('aria-label', cname() + ' 쓰다듬기');
+  renderSwap();
   const scale = curChar() === 'mungchi' ? 1 + (stageOf(pet.level) - 1) * 0.05 : 1;   // PNG는 그림 안에서 이미 자람   // 진화할수록 조금씩 커져요 (최대 1.15배)
   $('#h-stage').textContent = stageName(curChar(), stageOf(pet.level));
   $('#mascot').style.transform = 'scale(' + scale + ')';
@@ -856,6 +885,37 @@ function renderStatus() {
   stopBtn.classList.toggle('confirm', stopConfirm);
   stopBtn.textContent = stopConfirm ? '응, 오늘은 끝낼래' : '오늘은 그만 볼래';
 }
+const swapIcon = '<svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="#1F3A5F" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9h14l-4-4M20 15H6l4 4"/></svg>';
+const readyIds = () => Object.keys(CHARACTERS).filter((id) => CHARACTERS[id].ready);
+function renderSwap() {   // 아이 홈의 "친구 바꾸기" 버튼: 다음 친구 얼굴을 보여 줌
+  const ids = readyIds(), btn = $('#h-swap');
+  btn.hidden = ids.length < 2;
+  if (btn.hidden) return;
+  const next = ids[(ids.indexOf(curChar()) + 1) % ids.length];
+  btn.innerHTML = '<div class="thumb">' + charHTML('hello', null, stageOf(charState(next).level), next) + '</div><span class="badge">' + swapIcon + '</span>';
+}
+function openCharPick() {
+  $('#cp-list').innerHTML = readyIds().map((id) => {
+    const st = charState(id), stage = stageOf(st.level);
+    return '<button class="cp-item" data-char="' + id + '" aria-pressed="' + (id === curChar()) + '"><div class="pic">' +
+      charHTML('hello', null, stage, id) + '</div><b>' + esc(CHARACTERS[id].name) + '</b><span>' + STAGE_LABELS[stage - 1] + ' · Lv.' + st.level +
+      '</span><div class="meter"><i style="width:' + (st.fed * 100 / FEED_PER_LEVEL) + '%"></i></div></button>';
+  }).join('');
+  $('#charpick').hidden = false;
+}
+const closeCharPick = () => { $('#charpick').hidden = true; };
+$('#h-swap').addEventListener('click', openCharPick);
+$('#cp-close').addEventListener('click', closeCharPick);
+$('#charpick').addEventListener('click', (e) => { if (e.target.id === 'charpick') closeCharPick(); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#charpick').hidden) closeCharPick(); });
+$('#cp-list').addEventListener('click', (e) => {
+  const b = e.target.closest('.cp-item'); if (!b) return;
+  closeCharPick();
+  if (b.dataset.char === curChar()) return;
+  setCharacter(b.dataset.char);
+  stopConfirm = false; renderStatus();
+  react('excited', '안녕!\n나는 ' + josa(cname(), '이야', '야') + '!', 'hop');
+});
 function renderGridPicked() { $$('.tile').forEach((t) => t.classList.toggle('picked', t.dataset.id === pickedId)); }
 function renderHome() {
   checkNewDay(); syncFinished();
